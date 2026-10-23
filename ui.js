@@ -63,9 +63,17 @@ function fit() {
 }
 new ResizeObserver(fit).observe(panel);
 
+// each work opened counts as a page of its own in GoatCounter, e.g. /07-match-catch
+function countWork(w) {
+  const path = '/' + w.thumb.split('/')[1];
+  if (window.goatcounter && goatcounter.count) goatcounter.count({ path, title: w.title });
+  else setTimeout(() => window.goatcounter && goatcounter.count && goatcounter.count({ path, title: w.title }), 1500);
+}
+
 function openWork(id) {
   const w = WORKS.find(x => x.id === id);
   current = w;
+  countWork(w);
   fillInfo(w);
   const p = w.piece;
   stage.style.background = piece.style.background = p.bg || '#000';
