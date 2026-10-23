@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Super Easy Apply</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; height:100%; background:#05000f; overflow:hidden; }
+  #stage { position:absolute; left:0; top:0; width:1440px; height:1440px; transform-origin:0 0; cursor:none; }
+  #stage.review { cursor:default; }
+  canvas { display:block; }
+  #bar { position:fixed; left:0; right:0; bottom:0; z-index:5; padding:6px 10px; background:rgba(10,0,20,.82); color:#ddd;
+    font:12px/1.6 -apple-system, Helvetica, sans-serif; display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; }
+  #bar button { font:12px -apple-system, Helvetica, sans-serif; }
+  #bar input[type=range] { flex:1 1 300px; }
+  #bar input[type=number] { width:44px; font:11px monospace; }
+  #bar label { white-space:nowrap; }
+  #clock { font:13px monospace; min-width:260px; color:#fff; }
+  #bar.hidden { display:none; }
+</style>
+<script src="vhs.js"></script>
+<script src="models/statues.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="stage"></div>
+<div id="bar">
+  <button id="play">❚❚ pause</button>
+  <button id="go">click the sun</button>
+  <input id="scrub" type="range" min="0" max="20" step="0.01" value="0">
+  <span id="clock">beach</span>
+  <span id="durs"></span>
+  <span style="opacity:.6">H hides this bar</span>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { MarchingCubes } from 'three/addons/objects/MarchingCubes.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const S = 1440;
+const q = new URLSearchParams(location.search);
+const RENDER = q.has('render');                       // ?render=1&t=<s>: one self-playing frame for the video
+const CLEAN = !q.has('bar');                          // the exhibited page: no control bar (?bar shows it)
+const T0 = 0;
+if (CLEAN) document.getElementById('bar').remove();
+
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ antialias:true, preserveDrawingBuffer:true });
+renderer.setPixelRatio(1); renderer.setSize(S, S);
+renderer.autoClear = false;
+renderer.toneMapping = THREE.NeutralToneMapping;
+stage.prepend(renderer.domElement);
+function fit() { const k = Math.min(innerWidth, innerHeight - (CLEAN ? 0 : 64)) / S;
+  stage.style.transform = `translate(${(innerWidth - S * k) / 2}px, ${Math.max(0, (innerHeight - (CLEAN ? 0 : 64) - S * k) / 2)}px) scale(${k})`; }
+fit(); addEventListener('resize', fit);
+const sm = (a, b, x) => { const t = Math.min(Math.max((x - a) / (b - a), 0), 1); return t * t * (3 - 2 * t); };
+
+// =====================================================================================
+// BEACH: sky, half-dome sun button, washy sea (one shader) + the metal hand
+// =====================================================================================
+const BEACH = (() => {
+// ---------- layout (fractions of the stage height, y up) ----------
+const HZ = 0.40, SUNC = new THREE.Vector2(0.5, 0.40), SUNR = 0.19;   // half a sun on the horizon
+
+// ---------- sun label ----------
+const lc = document.createElement('canvas'); lc.width = lc.height = 1024;
+const lg = lc.getContext('2d');
+lg.fillStyle = '#2a0650'; lg.textAlign = 'center'; lg.textBaseline = 'middle';
+// the dome is the top half of the texture: two lines fitted inside it
+lg.font = 'italic 900 104px "Arial Black", Impact, sans-serif'; lg.fillText('Super Easy', 512, 262);
+lg.font = 'italic 900 176px "Arial Black", Impact, sans-serif'; lg.fillText('Apply', 512, 408);
+const label = new THREE.CanvasTexture(lc);
+
+// ---------- background: sky + sun + water in one shader ----------
+const uniforms = { uTime:{ value:T0 }, uRes:{ value:new THREE.Vector2(S, S) }, uLabel:{ value:label }, uNear:{ value:0 }, uSink:{ value:0 }, uBoil:{ value:0 }, uSteam:{ value:0 }, uPT:{ value:0 } };
+const frag = /* glsl */`
+precision highp float;
+uniform float uTime; uniform vec2 uRes; uniform sampler2D uLabel; uniform float uNear, uSink, uBoil, uSteam, uPT;
+varying vec2 vUv;
+const float HZ = ${HZ.toFixed(3)};
+const vec2  SUNC = vec2(${SUNC.x.toFixed(3)}, ${SUNC.y.toFixed(3)});
+const float SUNR = ${SUNR.toFixed(3)};
+
+float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
+  return mix(mix(hash(i), hash(i+vec2(1,0)), f.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y); }
+float fbm(vec2 p){ float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++){ s += a*noise(p); p = p*2.03 + 7.1; a *= 0.5; } return s; }
+
+vec3 sky(vec2 p){
+  float t = clamp((p.y - HZ) / (1.0 - HZ), 0.0, 1.0);
+  vec3 c = mix(vec3(1.00, 0.62, 0.55), vec3(0.98, 0.33, 0.62), smoothstep(0.0, 0.22, t));
+  c = mix(c, vec3(0.45, 0.12, 0.62), smoothstep(0.18, 0.55, t));
+  c = mix(c, vec3(0.07, 0.01, 0.18), smoothstep(0.5, 1.0, t));
+  float st = step(0.9975, hash(floor(p * 700.0))) * smoothstep(0.45, 0.9, t);
+  return c + st * 0.8;
+}
+vec2 sunC(){ return SUNC - vec2(0.0, uSink * SUNR * 1.06); }
+vec4 sun(vec2 p, float withLabel){
+  vec2 d = p - sunC(); float r = length(d) / SUNR;
+  float a = 1.0 - smoothstep(0.995, 1.0, r);
+  float yy = (p.y - HZ) / SUNR;                  // colour ramp over the visible dome: pink at the sea, yellow on top
+  vec3 c = mix(vec3(1.0, 0.30, 0.55), vec3(1.0, 0.93, 0.45), smoothstep(0.05, 0.95, yy));
+  c += vec3(0.10, 0.08, 0.05) * uNear;                          // warms up as the hand gets close
+  vec4 lab = texture2D(uLabel, d / SUNR * 0.5 + 0.5);
+  c = mix(c, vec3(0.16, 0.02, 0.31), lab.a * withLabel);
+  return vec4(c, a);
+}
+// steam: billowing plumes rising from where the sun went into the sea
+vec3 steam(vec2 p, vec3 c){
+  if (uSteam <= 0.0) return c;
+  float h = p.y - HZ;
+  float front = uPT * 0.32;                                        // how high the vapour has risen
+  float halfw = SUNR * (1.0 + h * 1.3);
+  float dx = abs(p.x - SUNC.x);
+  float m = smoothstep(halfw, halfw * 0.25, dx) * smoothstep(front, front - 0.15, h) * smoothstep(-0.01, 0.015, h);
+  vec2 q = vec2((p.x - SUNC.x) * 5.0, (p.y - uPT * 0.22) * 4.5);
+  float d = fbm(q + vec2(fbm(q * 0.7 + uPT * 0.3) * 2.0, fbm(q * 1.3 - uPT * 0.2)));
+  d = smoothstep(0.22, 0.55, d) * m * uSteam;
+  d *= 1.0 - smoothstep(0.45, 0.8, h) * 0.5;                      // thins out as it climbs
+  vec3 vap = mix(vec3(1.0, 0.86, 0.93), vec3(1.0, 0.97, 0.98), smoothstep(0.4, 0.9, d));
+  return mix(c, vap, clamp(d * 1.6, 0.0, 0.95));
+}
+vec3 scene(vec2 p){
+  if (p.y >= HZ) {
+    vec3 c = sky(p);
+    vec4 s = sun(p, 1.0);
+    float glow = exp(-pow(max(length(p - sunC()) / SUNR - 1.0, 0.0) * 3.2, 1.2)) * (1.0 - uSink * 0.7);
+    c += vec3(1.0, 0.45, 0.6) * glow * (0.35 + uNear * 0.55);
+    c = mix(c, s.rgb, s.a);
+    return steam(p, c);
+  }
+  float dy = HZ - p.y;
+  float depth = 0.09 / (dy + 0.006);
+  vec2 w = vec2((p.x - SUNC.x) * depth, depth + uTime * 0.55);
+  vec2 warp = vec2(fbm(w * vec2(0.5, 1.2) + uTime * 0.05), fbm(w * vec2(0.5, 1.2) + 4.3));
+  float n = fbm(w * vec2(0.35, 2.2) + warp * 1.6);
+  float fine = noise(vec2(w.x * 2.5, w.y * 18.0) + warp * 3.0);
+  n = n * 0.8 + fine * 0.2;
+  vec3 deep = vec3(0.12, 0.06, 0.34), teal = vec3(0.10, 0.74, 0.86), lil = vec3(0.78, 0.55, 1.00);
+  vec3 c = mix(deep, teal, smoothstep(0.28, 0.60, n));
+  c = mix(c, lil, smoothstep(0.58, 0.74, n) * 0.85);
+  c += vec3(0.75, 1.0, 1.0) * smoothstep(0.68, 0.73, n) * 0.8;
+  c = mix(c, sky(vec2(p.x, HZ + dy * 0.6)) * 0.9, 0.35 * (1.0 - smoothstep(0.0, 0.3, dy)));
+  float row = floor(w.y * 2.5);
+  float shift = (noise(vec2(row * 1.7, floor(uTime * 3.0))) - 0.5) * 0.10 + (n - 0.5) * 0.22;
+  shift *= 0.4 + dy * 3.0;
+  vec2 rp = vec2(p.x + shift, HZ + dy * 0.75);
+  vec4 s = sun(rp, 0.0);
+  float wave = sin(w.y * 26.0 + p.y * 140.0 + fine * 5.0 + warp.y * 6.0);
+  float brk = smoothstep(-0.1, 0.5, wave + (fbm(vec2(w.x * 1.4, w.y * 5.0) + warp * 2.0) - 0.5) * 2.6);
+  c += vec3(0.6, 1.0, 1.0) * smoothstep(0.85, 1.0, sin(w.y * 26.0 + p.y * 140.0 + fine * 5.0 + warp.y * 6.0 + 2.0)) * 0.25;
+  c = mix(c, s.rgb * 1.08, s.a * brk * 0.92 * (1.0 - 0.75 * smoothstep(0.12, 0.40, dy)));
+  c = mix(c, vec3(1.0, 0.62, 0.66), exp(-dy * 60.0) * 0.8);
+  // boiling: churning foam and popping bubbles around where the sun goes down
+  if (uBoil > 0.0) {
+    float zone = smoothstep(SUNR * 1.3, SUNR * 0.6, abs(p.x - SUNC.x)) * exp(-dy * 12.0);
+    vec2 bq = vec2((p.x - SUNC.x) * 16.0 / (0.3 + dy * 6.0), dy * 70.0 / (0.3 + dy * 3.0));   // squashed toward the horizon
+    float churn = fbm(bq * vec2(1.0, 0.6) + vec2(0.0, -uPT * 3.0)) + fbm(bq * 2.3 + uPT * 2.0) * 0.5;
+    float foam = smoothstep(0.45, 0.85, churn);
+    vec2 cell = floor(bq * 1.6), fcell = fract(bq * 1.6) - 0.5;
+    float life = fract(uPT * (1.2 + hash(cell) * 1.5) + hash(cell + 3.1));
+    float rad = 0.12 + 0.3 * life;
+    float bub = smoothstep(0.06, 0.0, abs(length(fcell * vec2(1.0, 1.7)) - rad)) * step(0.45, hash(cell + 7.7)) * (1.0 - life);
+    float k = zone * uBoil;
+    vec3 hot = mix(vec3(1.0, 0.55, 0.62), vec3(1.0, 0.95, 0.90), foam);
+    c = mix(c, hot, clamp(foam * k * 1.8, 0.0, 0.95));
+    c += vec3(1.0, 0.95, 0.95) * bub * k * 1.5;
+    c += vec3(0.9, 0.35, 0.5) * k * 0.25;                          // the sun's heat glowing under the water
+    // low vapour hugging the water surface
+    float mist = smoothstep(0.4, 0.75, fbm(vec2(p.x * 7.0 - uPT * 0.3, dy * 30.0 - uPT))) * exp(-dy * 20.0) * zone;
+    c = mix(c, vec3(1.0, 0.9, 0.95), mist * uSteam);
+  }
+  return c;
+}
+void main(){
+  vec2 fc = vUv * uRes;
+  float line = floor(fc.y / 3.0);
+  float jit = (hash(vec2(line, floor(uTime * 12.0))) - 0.5) * 2.0 * step(0.985, hash(vec2(floor(uTime * 12.0), line * 0.07)));
+  vec2 p = (fc + vec2(jit * 14.0, 0.0)) / uRes.y;
+  float ca = 1.6 / uRes.y;
+  vec3 c = vec3(scene(p + vec2(ca, 0.0)).r, scene(p).g, scene(p - vec2(ca, 0.0)).b);
+  c *= 0.93 + 0.07 * sin(fc.y * 3.14159 * 0.5);
+  c += (hash(fc + fract(uTime) * 91.0) - 0.5) * 0.06;
+  vec2 v = vUv - 0.5; c *= 1.0 - dot(v, v) * 0.55;
+  gl_FragColor = vec4(c, 1.0);
+}`;
+const bgScene = new THREE.Scene();
+bgScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
+  uniforms, fragmentShader: frag,
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+  depthWrite:false, depthTest:false, toneMapped:false,
+})));
+const bgCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+// ---------- hand scene ----------
+const scene = new THREE.Scene();
+const VIEW_H = 6.4, CAM_Z = 10;                     // visible height at z = 0 (world units)
+const camera = new THREE.PerspectiveCamera(THREE.MathUtils.radToDeg(2 * Math.atan(VIEW_H / 2 / CAM_Z)), 1, 0.1, 100);
+camera.position.set(0, 0, CAM_Z);
+
+// environment the metal reflects: vaporwave sky, pink key, white top, teal water, the sun
+function makeEnv() {
+  const env = new THREE.Scene();
+  env.add(new THREE.Mesh(new THREE.SphereGeometry(50, 64, 32), new THREE.ShaderMaterial({
+    side: THREE.BackSide, toneMapped:false,
+    vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `varying vec3 vD; void main(){
+      float y = vD.y; vec3 c;
+      if (y > 0.0) { c = mix(vec3(1.0, 0.80, 0.84), vec3(0.85, 0.55, 0.90), smoothstep(0.0, 0.35, y));
+                     c = mix(c, vec3(0.16, 0.05, 0.32), smoothstep(0.35, 0.95, y)); }
+      else c = mix(vec3(1.0, 0.72, 0.86), vec3(0.42, 0.40, 0.62), smoothstep(0.0, 0.5, -y));
+      float band = smoothstep(0.02, 0.0, abs(y - 0.12)) + smoothstep(0.03, 0.0, abs(y + 0.18));
+      c *= 1.0 - 0.8 * clamp(band, 0.0, 1.0);
+      c *= mix(0.35, 1.0, smoothstep(-0.9, 0.3, sin(atan(vD.z, vD.x) * 3.0)));
+      gl_FragColor = vec4(c, 1.0); }`,
+  })));
+  const panel = (w, h, color, pos, k = 1) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(k), side:THREE.DoubleSide, toneMapped:false }));
+    m.position.set(...pos); m.lookAt(0, 0, 0); env.add(m);
+  };
+  panel(26, 14, 0xff6fd0, [-28, 14, 18], 3.2);      // pink key, upper left front
+  panel(34, 12, 0xffffff, [0, 40, 6], 3.0);          // white softbox above
+  panel(14, 20, 0xffc4ec, [30, 6, 16], 2.2);
+  panel(20, 14, 0xffffff, [4, 8, 40], 1.4);          // soft white from the camera side        // pink-white fill right
+  panel(18, 4, 0x55e8ff, [14, -28, 18], 0.8);        // cyan bounce from the water
+  const sunD = new THREE.Mesh(new THREE.CircleGeometry(9, 48), new THREE.MeshBasicMaterial({ color:new THREE.Color(0xffc070).multiplyScalar(2.2), toneMapped:false }));
+  sunD.position.set(0, 4, -45); sunD.lookAt(0, 0, 0); env.add(sunD);
+  const pm = new THREE.PMREMGenerator(renderer);
+  return pm.fromScene(env, 0.015).texture;
+}
+scene.environment = makeEnv();
+
+// ---------- the hand: capsules smooth-unioned into an SDF, polygonised ----------
+// right hand pointing: back of the hand toward the viewer, index straight down, the other fingers
+// curled into the palm (palm faces away, -z), thumb resting over the middle finger; thumb side is +x.
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+function capsule(a, b, ra, rb, k = 0.06) { return { a:V(...a), b:V(...b), ra, rb, k }; }
+// a finger from its knuckle: segment lengths + flexion angles (0 = straight down, + curls toward the palm)
+function finger(mcp, lens, angles, radii, splay = 0) {
+  const pts = [V(...mcp)], segs = [];
+  let th = 0;
+  for (let i = 0; i < lens.length; i++) {
+    th += angles[i];
+    const d = V(Math.sin(splay) * Math.cos(th), -Math.cos(th) * Math.cos(splay), -Math.sin(th));
+    pts.push(pts[i].clone().addScaledVector(d.normalize(), lens[i]));
+  }
+  for (let i = 0; i < lens.length; i++)
+    segs.push({ a:pts[i], b:pts[i + 1], ra:radii[i], rb:radii[i + 1], k: i === 0 ? 0.07 : 0.004 });
+  const dir = pts[3].clone().sub(pts[2]).normalize();
+  const dorsal = V(0, -Math.sin(th), Math.cos(th)).normalize();      // back of the last segment
+  return { segs, tip: pts[3].clone().addScaledVector(dir, radii[3] * 0.9), dir, dorsal, last: segs[2] };
+}
+const INDEX  = finger([0.30, 0.02, 0.02], [0.44, 0.27, 0.21], [0.10, 0.08, 0.05], [0.105, 0.094, 0.084, 0.076], 0.03);
+const MIDDLE = finger([0.10, -0.01, 0.03], [0.44, 0.28, 0.21], [1.20, 1.75, 0.95], [0.108, 0.098, 0.088, 0.078]);
+const RING   = finger([-0.09, 0.01, 0.02], [0.41, 0.26, 0.20], [1.15, 1.80, 0.95], [0.102, 0.093, 0.083, 0.074]);
+const PINKY  = finger([-0.26, 0.06, 0.0], [0.33, 0.21, 0.18], [1.05, 1.85, 0.95], [0.09, 0.082, 0.074, 0.066]);
+// thumb: from the base of the palm, around the side, resting across the curled middle finger
+const THUMB = (() => {
+  const P = [V(0.22, 0.74, -0.10), V(0.40, 0.38, -0.20), V(0.30, 0.02, -0.40), V(0.10, -0.12, -0.52)];
+  const r = [0.15, 0.12, 0.105, 0.092];
+  const segs = [0, 1, 2].map(i => ({ a:P[i], b:P[i + 1], ra:r[i], rb:r[i + 1], k: i === 0 ? 0.12 : 0.004 }));
+  const dir = P[3].clone().sub(P[2]).normalize();
+  return { segs, dir, dorsal: V(0.45, -0.15, 0.88).normalize(), last: segs[2] };
+})();
+const HAND = [
+  // forearm + wrist (continues out of the box as a plain cone)
+  capsule([0.02, 0.78, -0.02], [0.90, 3.6, 0.60], 0.25, 0.31, 0.14),
+  capsule([-0.20, 0.86, 0.02], [-0.20, 0.86, 0.02], 0.085, 0.085, 0.10),    // wrist bone (ulna)
+  // palm: four metacarpals, flattened by keeping them in one plane
+  capsule([0.15, 0.82, -0.02], [0.30, 0.02, 0.0], 0.13, 0.112, 0.10),
+  capsule([0.04, 0.84, -0.02], [0.10, -0.01, 0.0], 0.13, 0.118, 0.10),
+  capsule([-0.07, 0.82, -0.02], [-0.09, 0.01, 0.0], 0.13, 0.112, 0.10),
+  capsule([-0.16, 0.76, -0.02], [-0.26, 0.06, -0.01], 0.12, 0.10, 0.10),
+  capsule([0.20, 0.72, -0.12], [0.16, 0.30, -0.14], 0.12, 0.09, 0.12),     // thumb muscle (thenar), palm side
+  // knuckles: soft bumps on the back
+  ...[[0.30, 0.03, 0.07], [0.10, 0.0, 0.08], [-0.09, 0.02, 0.07], [-0.26, 0.07, 0.05]].map(p => capsule(p, p, 0.075, 0.075, 0.07)),
+  // tendons on the back of the hand
+  capsule([0.06, 0.74, 0.10], [0.29, 0.10, 0.10], 0.022, 0.024, 0.06),
+  capsule([0.02, 0.75, 0.11], [0.10, 0.08, 0.11], 0.022, 0.024, 0.06),
+  capsule([-0.02, 0.74, 0.10], [-0.09, 0.10, 0.10], 0.02, 0.022, 0.06),
+  capsule([-0.06, 0.72, 0.09], [-0.25, 0.13, 0.08], 0.018, 0.02, 0.06),
+  ...INDEX.segs, ...MIDDLE.segs, ...RING.segs, ...PINKY.segs, ...THUMB.segs,
+];
+const INDEX_TIP = INDEX.tip;                                     // hotspot (local coords)
+
+const tmpV = new THREE.Vector3(), ab = new THREE.Vector3();
+function sdCapsule(p, c) {
+  ab.subVectors(c.b, c.a);
+  const l2 = ab.lengthSq();
+  const t = l2 === 0 ? 0 : THREE.MathUtils.clamp(tmpV.subVectors(p, c.a).dot(ab) / l2, 0, 1);
+  tmpV.copy(c.a).addScaledVector(ab, t);
+  return p.distanceTo(tmpV) - (c.ra + (c.rb - c.ra) * t);
+}
+function smin(a, b, k) { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; }
+function sdHand(p) { let d = 1e9; for (const c of HAND) d = smin(d, sdCapsule(p, c), c.k); return d; }
+
+// polished metal with a faint brushed grain (normal + roughness wobble, running along the arm)
+function brushed(mat, amount) {
+  mat.onBeforeCompile = sh => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vObjPos;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvObjPos = (modelMatrix * vec4(position, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+        varying vec3 vObjPos;
+        float h3(vec3 p){ return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+        float n3(vec3 p){ vec3 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
+          return mix(mix(mix(h3(i), h3(i+vec3(1,0,0)), f.x), mix(h3(i+vec3(0,1,0)), h3(i+vec3(1,1,0)), f.x), f.y),
+                     mix(mix(h3(i+vec3(0,0,1)), h3(i+vec3(1,0,1)), f.x), mix(h3(i+vec3(0,1,1)), h3(i+vec3(1,1,1)), f.x), f.y), f.z); }`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+        vec3 bp = vObjPos * vec3(260.0, 6.0, 260.0);
+        float g1 = n3(bp), g2 = n3(bp + 17.3), blot = n3(vObjPos * 3.0);
+        roughnessFactor = clamp(roughnessFactor + (g1 - 0.5) * 0.10 + (blot - 0.5) * 0.08, 0.02, 1.0);`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        normal = normalize(normal + ${amount.toFixed(3)} * vec3(g1 - 0.5, 0.0, g2 - 0.5));`);
+  };
+  return mat;
+}
+const metal = brushed(new THREE.MeshPhysicalMaterial({
+  color:0xfff6fb, metalness:1.0, roughness:0.13, clearcoat:0.6, clearcoatRoughness:0.05, envMapIntensity:1.5,
+}), 0.10);
+const nailMat = new THREE.MeshPhysicalMaterial({ color:0xffe6f3, metalness:1.0, roughness:0.03, clearcoat:1, envMapIntensity:1.7 });
+
+// fingernail: a thin rounded shell on the back of the last segment
+function nail(f, w, l) {
+  const c = f.last, dir = f.dir, dors = f.dorsal.clone().addScaledVector(dir, -f.dorsal.dot(dir)).normalize();
+  const m = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), nailMat);
+  const len = c.a.distanceTo(c.b);
+  m.position.copy(c.b).addScaledVector(dir, -len * 0.25 + 0.02).addScaledVector(dors, c.rb * 0.78);
+  const x = new THREE.Vector3().crossVectors(dir, dors).normalize();
+  m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, dir, dors));
+  m.scale.set(w, l, 0.022);
+  return m;
+}
+
+// box in hand coords
+const BOX = { c:V(0.04, 0.40, -0.10), h:V(0.78, 1.55, 0.72) };
+function makeHand() {
+  const RES = 240;
+  const mc = new MarchingCubes(RES, metal, false, false, 900000);
+  mc.isolation = 0; mc.reset();
+  const p = new THREE.Vector3(), cell = V(2 * BOX.h.x / RES, 2 * BOX.h.y / RES, 2 * BOX.h.z / RES);
+  const B = 6, skip = cell.length() * B * 1.2;          // coarse pass: skip empty blocks
+  for (let bz = 0; bz < RES; bz += B) for (let by = 0; by < RES; by += B) for (let bx = 0; bx < RES; bx += B) {
+    p.set(BOX.c.x - BOX.h.x + (bx + B / 2) * cell.x, BOX.c.y - BOX.h.y + (by + B / 2) * cell.y, BOX.c.z - BOX.h.z + (bz + B / 2) * cell.z);
+    const far = sdHand(p) > skip;
+    for (let z = bz; z < Math.min(bz + B, RES); z++) for (let y = by; y < Math.min(by + B, RES); y++) for (let x = bx; x < Math.min(bx + B, RES); x++) {
+      const i = x + y * RES + z * RES * RES;
+      if (far) { mc.field[i] = -1; continue; }
+      p.set(BOX.c.x - BOX.h.x + x * cell.x, BOX.c.y - BOX.h.y + y * cell.y, BOX.c.z - BOX.h.z + z * cell.z);
+      mc.field[i] = -sdHand(p) * 50;
+    }
+  }
+  mc.update();
+  mc.scale.copy(BOX.h);               // MarchingCubes spans [-1,1]^3 locally: map it back onto the box
+  mc.position.copy(BOX.c);
+  const g = new THREE.Group(); g.add(mc);
+  // forearm beyond the box: a plain cone along the same axis, tucked inside the SDF surface
+  const fa = HAND[0], dir = fa.b.clone().sub(fa.a).normalize();
+  const topY = BOX.c.y + BOX.h.y - 0.6;                       // start well inside the box
+  const t = (topY - fa.a.y) / (fa.b.y - fa.a.y), r0 = fa.ra + (fa.rb - fa.ra) * t - 0.001;
+  const start = fa.a.clone().lerp(fa.b, t), L = 16;
+  const cyl = new THREE.Mesh(new THREE.CylinderGeometry(r0 + L * (fa.rb - fa.ra) / fa.b.distanceTo(fa.a), r0, L, 64, 1, true), metal);
+  cyl.position.copy(start).addScaledVector(dir, L / 2);
+  cyl.quaternion.setFromUnitVectors(V(0, 1, 0), dir);
+  g.add(cyl);
+  g.add(nail(INDEX, 0.068, 0.10), nail(MIDDLE, 0.07, 0.10), nail(RING, 0.066, 0.095), nail(PINKY, 0.058, 0.085), nail(THUMB, 0.08, 0.11));
+  return g;
+}
+const hand = new THREE.Group();
+hand.add(makeHand()); hand.rotation.set(0.10, -0.42, 0.10); scene.add(hand);
+
+// put the fingertip under a stage pixel (on the plane z = 0)
+function placeHand(px, py, push = 0) {
+  const wx = (px / S - 0.5) * VIEW_H, wy = (0.5 - py / S) * VIEW_H;
+  hand.updateMatrixWorld(true);
+  const tipW = INDEX_TIP.clone().applyEuler(hand.rotation);
+  hand.position.set(wx - tipW.x, wy - tipW.y - push * 0.06, -tipW.z - push * 0.25);   // push: the finger presses in
+}
+
+// ---------- counter: 0 far away -> 1000 on the sun ----------
+function candidates(px, py) {
+  const sx = SUNC.x * S, sy = (1 - SUNC.y) * S;               // sy is also the horizon line
+  const d = Math.max(0, Math.hypot(px - sx, Math.min(py, sy) - sy) - SUNR * S, py - sy);
+  return Math.round(1000 * Math.pow(1 - Math.min(d / 700, 1), 2.2));
+}
+
+
+function pressState(pt) {                      // seconds since the click -> sink / boil / steam
+  if (pt < 0) return { sink:0, boil:0, steam:0 };
+  const dip = Math.min(pt / 0.1, 1) * 0.06;    // the button gives a little first
+  return { sink: Math.max(dip, sm(0.15, 1.7, pt)), boil: sm(0.1, 0.5, pt), steam: sm(0.25, 0.9, pt) };
+}
+return { uniforms, bgScene, bgCam, scene, camera, placeHand, candidates, pressState, label, SUNC, SUNR, HZ };
+})();
+
+// =====================================================================================
+// REVIEW: statues spinning among columns on a neon grid streaming toward the viewer
+// =====================================================================================
+const REVIEW = await (async () => {
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x1a0636, 9, 30);
+const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+camera.position.set(0, 1.25, 5.4);
+camera.lookAt(0, 1.05, 0);
+
+// ---------- sky: night gradient + a network of glowing wireframe triangles ----------
+function skyTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 2048;
+  const g = c.getContext('2d');
+  const grd = g.createLinearGradient(0, 0, 0, 2048);
+  grd.addColorStop(0, '#05000f'); grd.addColorStop(0.55, '#12022e'); grd.addColorStop(0.85, '#3a0a5e'); grd.addColorStop(1, '#6a1470');
+  g.fillStyle = grd; g.fillRect(0, 0, 2048, 2048);
+  let s = 11; const r = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  const P = []; for (let i = 0; i < 70; i++) P.push([r() * 2048, r() * 1400]);
+  g.lineWidth = 3;
+  for (let i = 0; i < P.length; i++) {
+    const near = P.map((p, j) => [Math.hypot(p[0] - P[i][0], p[1] - P[i][1]), j]).sort((a, b) => a[0] - b[0]).slice(1, 4);
+    for (const [, j] of near) {
+      if (j < i) continue;
+      const col = r() < 0.6 ? '60,230,255' : '255,80,220';
+      g.strokeStyle = `rgba(${col},0.25)`; g.lineWidth = 12; g.beginPath(); g.moveTo(...P[i]); g.lineTo(...P[j]); g.stroke();
+      g.strokeStyle = `rgba(${col},0.95)`; g.lineWidth = 4; g.beginPath(); g.moveTo(...P[i]); g.lineTo(...P[j]); g.stroke();
+    }
+  }
+  for (let i = 0; i < 300; i++) { g.fillStyle = `rgba(255,255,255,${r() * 0.6})`; g.fillRect(r() * 2048, r() * 1300, 2, 2); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const sky = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.MeshBasicMaterial({ map: skyTexture(), fog:false, toneMapped:false }));
+sky.position.set(0, 5.0, -14); scene.add(sky);
+
+// ---------- neon grid floor, drifting toward the viewer ----------
+const gridU = { uTime:{ value:T0 } };   // the grid streams toward the viewer: moving forward
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.ShaderMaterial({
+  uniforms: gridU, toneMapped:false,
+  vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
+  fragmentShader: `uniform float uTime; varying vec3 vW;
+    float line(float v, float w){ float d = abs(fract(v) - 0.5); float fw = fwidth(v); return smoothstep(0.5 - w - fw, 0.5 - w, d); }
+    void main(){
+      vec2 p = vec2(vW.x, vW.z + uTime * 2.4) * 1.1;
+      float g = max(line(p.x + 0.5, 0.03), line(p.y + 0.5, 0.03));
+      float dist = length(vW.xz - vec2(0.0, 2.0));
+      vec3 base = mix(vec3(0.16, 0.02, 0.28), vec3(0.05, 0.0, 0.12), smoothstep(2.0, 20.0, dist));
+      vec3 neon = mix(vec3(1.0, 0.25, 0.85), vec3(0.55, 0.3, 1.0), smoothstep(0.0, 18.0, dist));
+      vec3 c = base + neon * g * (1.0 - smoothstep(10.0, 26.0, dist));
+      gl_FragColor = vec4(c, 1.0);
+    }`,
+  extensions: { derivatives: true },
+}));
+floor.rotation.x = -Math.PI / 2; scene.add(floor);
+
+// ---------- marble ----------
+const marble = new THREE.MeshStandardMaterial({ color:0xf3e6f2, roughness:0.55, metalness:0.0 });
+scene.add(new THREE.HemisphereLight(0x8a5cff, 0x2a0636, 1.1));
+const key = new THREE.DirectionalLight(0xffd6f4, 1.3); key.position.set(1.5, 4, 5); scene.add(key);
+const pink = new THREE.PointLight(0xff3fd0, 38, 12, 1.6); pink.position.set(-3.2, 2.4, 1.8); scene.add(pink);
+const cyan = new THREE.PointLight(0x5ad8ff, 30, 12, 1.6); cyan.position.set(3.2, 2.0, 1.2); scene.add(cyan);
+const violet = new THREE.PointLight(0x9a5cff, 20, 10, 1.6); violet.position.set(0, 3.2, -2.5); scene.add(violet);
+
+// ---------- columns: fluted shaft, base and capital ----------
+function column(h) {
+  const g = new THREE.Group();
+  const shaft = new THREE.CylinderGeometry(0.26, 0.3, h, 96, 24, false);
+  const pos = shaft.attributes.position, v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {                 // 20 flutes
+    v.fromBufferAttribute(pos, i); const a = Math.atan2(v.z, v.x), r = Math.hypot(v.x, v.z);
+    if (r < 0.2) continue;
+    const k = 1 - 0.05 * Math.pow(Math.abs(Math.sin(a * 10)), 0.6);
+    pos.setXYZ(i, v.x * k, v.y, v.z * k);
+  }
+  shaft.computeVertexNormals();
+  const m = new THREE.Mesh(shaft, marble); m.position.y = h / 2 + 0.2; g.add(m);
+  const add = (geo, y) => { const o = new THREE.Mesh(geo, marble); o.position.y = y; g.add(o); };
+  add(new THREE.BoxGeometry(0.8, 0.1, 0.8), 0.05);
+  add(new THREE.CylinderGeometry(0.36, 0.38, 0.1, 64), 0.15);
+  add(new THREE.CylinderGeometry(0.38, 0.27, 0.16, 64), h + 0.28);
+  add(new THREE.BoxGeometry(0.86, 0.14, 0.86), h + 0.43);
+  return g;
+}
+const colL = column(3.6); colL.position.set(-2.55, 0, -0.6); scene.add(colL);
+const colR = column(3.6); colR.position.set(2.55, 0, -0.9); scene.add(colR);
+const colB = column(3.6); colB.position.set(-1.2, 0, -5.0); scene.add(colB);
+const colB2 = column(3.6); colB2.position.set(1.6, 0, -5.4); scene.add(colB2);
+
+// ---------- statues ----------
+const loader = new GLTFLoader();
+const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0)).buffer;
+async function statue(name, h, x, z, rotY) {
+  const gltf = await loader.parseAsync(b64(window.STATUES[name]), '');
+  gltf.scene.traverse(o => { if (o.isMesh) { o.material = marble; } });
+  gltf.scene.scale.setScalar(h); gltf.scene.position.set(x, 0, z); gltf.scene.rotation.y = rotY;
+  scene.add(gltf.scene); return gltf.scene;
+}
+const plinth = (x, z, w, h) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), marble); m.position.set(x, h / 2, z); scene.add(m); return h; };
+const pH = plinth(-0.35, -2.6, 0.7, 0.55);
+// each statue spins around its own axis, at its own speed
+const spinners = await Promise.all([
+  statue('caryatid', 2.3, -1.3, 0.9, -1.15).then(o => ({ o, r0:-1.15, w:0.55 })),
+  statue('toga', 2.0, 1.35, 0.2, -0.45).then(o => ({ o, r0:-0.45, w:-0.45 })),
+  statue('athena', 2.05, 0.25, -1.6, -0.1).then(o => ({ o, r0:-0.1, w:0.35 })),
+  statue('roman_bronze', 1.2, -0.35, -2.6, 0.3).then(o => { o.position.y = pH; return { o, r0:0.3, w:-0.8 }; }),
+]);
+
+// ---------- VHS finish (scanlines, grain, slight colour split) as a post pass ----------
+const rt = new THREE.WebGLRenderTarget(S, S, { samples:4 });
+const post = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
+  uniforms: { tDiffuse:{ value: rt.texture }, uTime:{ value:T0 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime; varying vec2 vUv;
+    float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    void main(){
+      vec2 uv = vUv; float line = floor(uv.y * 480.0);
+      uv.x += (h(vec2(line, floor(uTime * 30.0))) - 0.5) * 0.0012;
+      vec3 c = vec3(texture2D(tDiffuse, uv + vec2(0.0012, 0.0)).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv - vec2(0.0012, 0.0)).b);
+      c *= 0.92 + 0.08 * sin(vUv.y * ${S}.0 * 3.14159 * 0.5);
+      c += (h(vUv * ${S}.0 + fract(uTime) * 71.0) - 0.5) * 0.05;
+      vec2 v = vUv - 0.5; c *= 1.0 - dot(v, v) * 0.6;
+      gl_FragColor = vec4(c, 1.0);
+    }`,
+  depthTest:false, depthWrite:false, toneMapped:false,
+}));
+const postScene = new THREE.Scene(); postScene.add(post);
+const postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+
+return { scene, camera, gridU, spinners, rt, post, postScene, postCam };
+})();
+
+// =====================================================================================
+// HUD layers drawn with a 2D canvas (so the static and the vapour can cover them)
+// =====================================================================================
+function hudLayer() {
+  const c = document.createElement('canvas'); c.width = c.height = S;
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial({ map:tex, transparent:true, depthTest:false, depthWrite:false, toneMapped:false }));
+  const sc = new THREE.Scene(); sc.add(m);
+  return { c, g: c.getContext('2d'), tex, sc };
+}
+const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const beachHud = hudLayer(), reviewHud = hudLayer();
+let lastCount = -1;
+function drawCounter(n) {
+  if (n === lastCount) return; lastCount = n;
+  const g = beachHud.g, txt = 'Candidates who clicked apply: ' + n;
+  g.clearRect(0, 0, S, S);
+  g.font = '400 68px VT323, monospace'; g.textAlign = 'center'; g.textBaseline = 'top';
+  if ('letterSpacing' in g) g.letterSpacing = '3px';
+  g.fillStyle = 'rgba(255,60,200,.85)'; g.fillText(txt, S / 2 - 3, 64);
+  g.fillStyle = 'rgba(60,240,255,.85)'; g.fillText(txt, S / 2 + 3, 64);
+  g.shadowColor = 'rgba(255,120,220,.6)'; g.shadowBlur = 22; g.fillStyle = '#fff'; g.fillText(txt, S / 2, 64);
+  g.shadowBlur = 0; beachHud.tex.needsUpdate = true;
+}
+const MSG = "We're reviewing your application against the role's requirements. If your profile shows strong alignment, we'll share it directly with the hiring team and they'll contact you to arrange next steps.";
+function wrap(g, text, w) { const out = []; let line = '';
+  for (const word of text.split(' ')) { const t = line ? line + ' ' + word : word; if (g.measureText(t).width > w && line) { out.push(line); line = word; } else line = t; }
+  out.push(line); return out; }
+const PANEL = { w:1000, pad:60, msgSize:46, lh:59, labelSize:54, scoreSize:285 };
+let scoreCentre = [0.5, 0.4];
+function drawReview(textA, scoreA, glow, score) {
+  const g = reviewHud.g; g.clearRect(0, 0, S, S);
+  g.font = `800 ${PANEL.msgSize}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
+  const lines = wrap(g, MSG, PANEL.w - 2 * PANEL.pad);
+  const h = PANEL.pad + lines.length * PANEL.lh + 44 + PANEL.labelSize * 1.2 + PANEL.scoreSize * 1.05 + PANEL.pad * 0.6;
+  const x0 = (S - PANEL.w) / 2, y0 = (S - h) / 2;
+  g.globalAlpha = Math.min(1, textA * 1.5);
+  g.fillStyle = '#0b0219'; g.fillRect(x0, y0, PANEL.w, h);                        // the dark panel
+  const shadowText = (t, x, y) => {                                                // white with a pink/cyan split
+    g.fillStyle = 'rgba(255,60,200,.75)'; g.fillText(t, x - 2, y);
+    g.fillStyle = 'rgba(60,240,255,.75)'; g.fillText(t, x + 2, y);
+    g.fillStyle = '#fff'; g.fillText(t, x, y);
+  };
+  g.textAlign = 'center'; g.textBaseline = 'top';
+  g.globalAlpha = textA;
+  lines.forEach((l, i) => shadowText(l, S / 2, y0 + PANEL.pad + i * PANEL.lh));
+  let y = y0 + PANEL.pad + lines.length * PANEL.lh + 44;
+  g.globalAlpha = scoreA;
+  g.font = `800 ${PANEL.labelSize}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
+  shadowText('Your match score is:', S / 2, y);
+  y += PANEL.labelSize * 1.2;
+  // the score: yellow and glowing; the glow grows (it becomes the vapour)
+  const pop = 1 + 0.25 * Math.max(0, 1 - scoreA) ;
+  g.save(); g.translate(S / 2, y + PANEL.scoreSize * 0.52); g.scale(pop, pop);
+  g.font = `800 ${PANEL.scoreSize}px "Helvetica Neue", Helvetica, Arial, sans-serif`; g.textBaseline = 'middle';
+  const blur = [14, 40, 90, 160].map(b => b * (1 + glow * 3));
+  const cols = ['#fff3a0', '#ffd21a', '#ffae00', '#ff7a00'];
+  for (let i = 3; i >= 0; i--) { g.shadowColor = cols[i]; g.shadowBlur = blur[i]; g.fillStyle = '#ffe23a'; g.fillText(score + '%', 0, 0); }
+  g.shadowBlur = 0; g.fillStyle = glow > 0 ? `rgb(255,${226 + 29 * glow},${58 + 180 * glow})` : '#ffe23a'; g.fillText(score + '%', 0, 0);
+  g.restore();
+  scoreCentre = [0.5, 1 - (y + PANEL.scoreSize * 0.52) / S];
+  g.globalAlpha = 1;
+  // the Japanese line: "filtering you out"
+  g.font = '300 112px "Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif'; g.textBaseline = 'alphabetic';
+  if ('letterSpacing' in g) g.letterSpacing = '6px';
+  g.shadowColor = 'rgba(53,242,255,.7)'; g.shadowBlur = 16;
+  g.fillStyle = 'rgba(255,60,200,.6)'; g.fillText('あなたをふるい落とし中', S / 2 - 2, S - 70);
+  g.fillStyle = '#35f2ff'; g.fillText('あなたをふるい落とし中', S / 2, S - 70);
+  g.shadowBlur = 0; if ('letterSpacing' in g) g.letterSpacing = '0px';
+  reviewHud.tex.needsUpdate = true;
+}
+
+// =====================================================================================
+// OVERLAY: the score's glow growing into vapour, and the VHS static (vhs.js), over everything
+// =====================================================================================
+const SEED = RENDER ? 7 : Math.floor(Math.random() * 1e9);
+const ovU = { uTime:{ value:0 }, uStatic:{ value:0 }, uGlow:{ value:0 }, uVapor:{ value:0 }, uC:{ value:new THREE.Vector2(0.5, 0.4) }, ...VHS.uniforms(SEED) };
+const overlay = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
+  glslVersion: THREE.GLSL3, uniforms: ovU, transparent:true, depthTest:false, depthWrite:false, toneMapped:false,
+  vertexShader: 'out vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+  fragmentShader: `precision highp float; uniform float uTime, uStatic, uGlow, uVapor; uniform vec2 uC; in vec2 vUv; out vec4 outColor;
+    ${VHS.GLSL}
+    float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
+      return mix(mix(h2(i), h2(i+vec2(1,0)), f.x), mix(h2(i+vec2(0,1)), h2(i+vec2(1,1)), f.x), f.y); }
+    float fbm2(vec2 p){ float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++){ s += a*n2(p); p = p*2.03 + 7.1; a *= 0.5; } return s; }
+    void main(){
+      vec3 c = vec3(0.0); float a = 0.0;
+      // 1. the glow of the score swells
+      float d = length(vUv - uC);
+      float gl = exp(-d * d / (0.004 + uGlow * uGlow * 0.12)) * uGlow;
+      c = mix(vec3(1.0, 0.82, 0.15), vec3(1.0, 0.97, 0.85), uGlow * 0.7); a = clamp(gl * 1.2, 0.0, 1.0);
+      // 2. and turns into billowing vapour that fills the screen
+      if (uVapor > 0.0) {
+        vec2 p = (vUv - uC) * 3.0;
+        float cl = fbm2(p + vec2(fbm2(p * 0.8 + uTime * 0.25) * 1.5, -uTime * 0.35));
+        float v = smoothstep(0.0, 0.25, cl - 0.55 + uVapor * 1.25 - d * 0.9) * uVapor;
+        v = clamp(v * 1.3, 0.0, 1.0);
+        vec3 vc = mix(vec3(1.0, 0.84, 0.92), vec3(1.0, 0.96, 0.88), cl);
+        float na = a + v * (1.0 - a);
+        c = na > 0.0 ? (c * a * (1.0 - v) + vc * v) / na : vc; a = na;
+      }
+      // 3. the tape loses its signal: VHS static creeps over the picture in patches
+      if (uStatic > 0.0) {
+        float pn = n2(vec2(vUv.x * 3.0 + uTime * 0.5, vUv.y * 5.0 - uTime)) * 0.6 + n2(vUv * 11.0 + uTime) * 0.4;
+        float s = clamp(uStatic * (1.0 + (pn - 0.5) * 0.7 * (1.0 - uStatic)), 0.0, 1.0);   // see-through, a little uneven, then solid
+        vec3 st = vhs(vUv, uTime);
+        float na = a + s * (1.0 - a);
+        c = na > 0.0 ? (c * a * (1.0 - s) + st * s) / na : st; a = na;
+      }
+      outColor = vec4(c, a);
+    }`,
+}));
+const ovScene = new THREE.Scene(); ovScene.add(overlay);
+
+// =====================================================================================
+// TIMELINE after the click (seconds), editable in the bar and kept in localStorage
+// =====================================================================================
+// static1: sun in the sea -> static -> the Romans; static2: the burst of the % -> static -> the sun
+const DEFAULT_D = { sink:1.6, static1:4.0, textIn:1.0, read:4.0, scorePop:0.4, scoreHold:1.4, glow:2.0, vapor:1.4, static2:3.0 };
+let D = { ...DEFAULT_D };
+try { if (!RENDER) Object.assign(D, JSON.parse(localStorage.getItem('super-easy-apply_D2') || '{}')); } catch (e) {}
+function marks() {
+  const m = {};
+  m.s1 = D.sink;                                       // static1 starts while the steam still rises
+  m.rev = m.s1 + D.static1 / 2;                        // scene switch hidden at the peak of the static
+  m.text = m.s1 + D.static1;                           // the Romans are clear: the text comes in
+  m.score = m.text + D.textIn + D.read;
+  m.glow = m.score + D.scorePop + D.scoreHold;
+  m.vap = m.glow + D.glow * 0.6;
+  m.s2 = m.vap + D.vapor * 0.6;                        // static2 starts with the burst of vapour
+  m.back = m.s2 + D.static2 / 2;                       // the sun again, under the static
+  m.end = m.s2 + D.static2;
+  return m;
+}
+let M = marks();
+// organic static envelope over a transition of length len starting at a:
+// picture -> see-through static -> full static (short hold) -> see-through static over the next picture -> next picture
+function envelope(tt, a, len) {
+  const u = (tt - a) / len;
+  if (u <= 0 || u >= 1) return 0;
+  return u < 0.5 ? sm(0.0, 0.42, u) : 1 - sm(0.58, 1.0, u);
+}
+// state of everything at 'tt' seconds after the click
+function seq(tt) {
+  const r = { beach: tt < M.rev || tt >= M.back, pt: tt, textA:0, scoreA:0, glow:0, vapor:0, stat:0, name:'' };
+  r.stat = Math.max(envelope(tt, M.s1, D.static1), envelope(tt, M.s2, D.static2));
+  if (tt < M.rev) r.name = tt < M.s1 ? 'sun sinks, water boils' : 'static1';
+  else if (tt < M.back) {
+    r.textA = sm(M.text, M.text + D.textIn, tt);
+    r.scoreA = sm(M.score, M.score + D.scorePop, tt);
+    r.glow = sm(M.glow, M.glow + D.glow, tt);
+    r.vapor = sm(M.vap, M.vap + D.vapor, tt);
+    r.name = tt < M.text ? 'static1' : tt < M.score ? 'review' : tt < M.glow ? 'match score' : tt < M.vap ? 'glow' : tt < M.s2 ? 'vapour' : 'static2';
+  } else { r.pt = -1; r.name = tt < M.end ? 'static2' : 'beach'; }
+  return r;
+}
+
+// =====================================================================================
+// the hand: follows the mouse (or, for the video, a scripted path)
+// =====================================================================================
+const APPROACH = 4.0;                                   // video: seconds from the corner to the click
+const START = [1330, 1500], CLICK = [728, 640];
+function autoPath(t) {                                  // corner -> hover above the sun -> press
+  const u = sm(0, 3.2, t), b = (p0, p1, p2, p3) => { const v = 1 - u; return v*v*v*p0 + 3*v*v*u*p1 + 3*v*u*u*p2 + u*u*u*p3; };
+  let x = b(START[0], 1240, 900, CLICK[0]), y = b(START[1], 760, 430, 560);
+  const hov = sm(3.2, 3.5, t) * (1 - sm(3.6, 3.9, t));
+  x += Math.sin(t * 9) * 6 * hov; y += sm(3.55, 3.95, t) * (CLICK[1] - 560);
+  return [x, y];
+}
+let mouse = [...START], tip = [...START], vel = 0;
+const canvasEl = renderer.domElement;
+function toStage(e) { const r = canvasEl.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * S, (e.clientY - r.top) / r.height * S]; }
+function onDome(p) { return BEACH.candidates(p[0], p[1]) >= 1000; }
+addEventListener('pointermove', e => { mouse = toStage(e); });
+
+// =====================================================================================
+// clock, state and controls
+// =====================================================================================
+let playing = true, sim = 0, last = performance.now();
+let state = 'beach', clickAt = 0, frozenCount = 0;
+let SCORE = q.get('n') ?? (RENDER ? '23' : null);
+function newScore() { return SCORE && RENDER ? SCORE : String(1 + Math.floor(Math.random() * 99)); }
+let score = newScore();
+function startSeq() { state = 'seq'; clickAt = sim; frozenCount = 1000; score = newScore(); }
+canvasEl.addEventListener('pointerdown', e => { mouse = toStage(e); if (state === 'beach' && onDome(tip)) startSeq(); });
+
+const bar = document.getElementById('bar');
+if (bar) {
+  const playB = document.getElementById('play'), scrub = document.getElementById('scrub');
+  playB.onclick = () => { playing = !playing; playB.textContent = playing ? '❚❚ pause' : '▶ play'; };
+  document.getElementById('go').onclick = () => { tip = [...CLICK]; mouse = [...CLICK]; startSeq(); };
+  scrub.oninput = () => { state = 'seq'; clickAt = sim - parseFloat(scrub.value); playing = false; playB.textContent = '▶ play'; };
+  const durs = document.getElementById('durs');
+  for (const k of Object.keys(DEFAULT_D)) {
+    const l = document.createElement('label'); l.textContent = ({ static1:'static1 sun→romans (s)', static2:'static2 score→sun (s)' }[k] || k) + ' ';
+    if (k.startsWith('static')) l.style.cssText = 'color:#ffe23a;font-weight:600';
+    const i = document.createElement('input'); i.type = 'number'; i.step = '0.1'; i.min = '0'; i.value = D[k];
+    i.onchange = () => { D[k] = parseFloat(i.value) || 0; M = marks(); localStorage.setItem('super-easy-apply_D2', JSON.stringify(D)); };
+    l.appendChild(i); durs.appendChild(l);
+  }
+  addEventListener('keydown', e => { if (e.key === 'h' || e.key === 'H') bar.classList.toggle('hidden'); if (e.key === ' ') playB.onclick(); });
+}
+
+// =====================================================================================
+// one frame
+// =====================================================================================
+function draw(t, handPos, tt) {
+  const s = state === 'seq' ? seq(tt) : null;
+  ovU.uTime.value = t;
+  VHS.applySchedule && null;
+  if (!s || s.beach) {
+    // beach
+    const ps = BEACH.pressState(s ? s.pt : -1);
+    const u = BEACH.uniforms;
+    u.uTime.value = t; u.uSink.value = ps.sink; u.uBoil.value = ps.boil; u.uSteam.value = ps.steam; u.uPT.value = s ? Math.max(s.pt, 0) : 0;
+    const n = s && s.pt >= 0 ? frozenCount : BEACH.candidates(handPos[0], handPos[1]);
+    u.uNear.value = n / 1000;
+    const push = s && s.pt >= 0 ? Math.sin(Math.min(s.pt / 0.3, 1) * Math.PI) : 0;
+    BEACH.placeHand(handPos[0], handPos[1], push);
+    renderer.setRenderTarget(null); renderer.toneMappingExposure = 1.45; renderer.clear();
+    renderer.render(BEACH.bgScene, BEACH.bgCam);
+    renderer.render(BEACH.scene, BEACH.camera);
+    drawCounter(n);
+    renderer.render(beachHud.sc, ortho);
+    stage.classList.remove('review');
+  } else {
+    // review
+    REVIEW.gridU.uTime.value = t; REVIEW.post.material.uniforms.uTime.value = t;
+    for (const sp of REVIEW.spinners) sp.o.rotation.y = sp.r0 + sp.w * t;
+    renderer.toneMappingExposure = 1.0;
+    renderer.setRenderTarget(REVIEW.rt); renderer.clear(); renderer.render(REVIEW.scene, REVIEW.camera);
+    renderer.setRenderTarget(null); renderer.clear(); renderer.render(REVIEW.postScene, REVIEW.postCam);
+    drawReview(s.textA, s.scoreA, s.glow, score);
+    renderer.render(reviewHud.sc, ortho);
+    stage.classList.add('review');
+  }
+  ovU.uStatic.value = s ? s.stat : 0; ovU.uGlow.value = s ? s.glow : 0; ovU.uVapor.value = s ? s.vapor : 0;
+  ovU.uC.value.set(scoreCentre[0], scoreCentre[1]);
+  if (s && (s.stat > 0 || s.glow > 0 || s.vapor > 0)) renderer.render(ovScene, ortho);
+  return s;
+}
+
+await document.fonts.load('68px VT323'); await document.fonts.ready;
+BEACH.label.needsUpdate = true;
+
+if (RENDER) {
+  // video: corner -> click -> the whole sequence -> the beach again with the hand back in the corner
+  const L = Math.ceil((APPROACH + M.end) * 30) / 30, T = parseFloat(q.get('t') ?? '0') % L;   // a whole number of frames
+  let hp;
+  if (T < APPROACH) { state = 'beach'; hp = autoPath(T); }
+  else if (T >= APPROACH + M.end) { state = 'beach'; hp = [...START]; }
+  else { state = 'seq'; const tt = T - APPROACH; frozenCount = 1000; hp = tt < M.back ? autoPath(APPROACH) : [...START]; draw(T, hp, tt); }
+  if (state === 'beach') draw(T, hp, 0);
+  document.title = 'Super Easy Apply · loop ' + L.toFixed(3) + ' s';
+} else {
+  const clockEl = document.getElementById('clock'), scrub = document.getElementById('scrub');
+  (function frame() {
+    const now = performance.now(), dt = Math.min((now - last) / 1000, 0.1); last = now;
+    if (playing) sim += dt;
+    // the hand follows the pointer with a little weight
+    tip[0] += (mouse[0] - tip[0]) * 0.35; tip[1] += (mouse[1] - tip[1]) * 0.35;
+    let tt = sim - clickAt;
+    if (state === 'seq' && tt >= M.end) { state = 'beach'; }
+    const s = draw(sim, tip, tt);
+    if (clockEl) {
+      if (scrub) { scrub.max = M.end.toFixed(2); if (state === 'seq') scrub.value = tt.toFixed(2); }
+      clockEl.textContent = state === 'seq' ? `${tt.toFixed(2)} s · ${s.name} · ${Math.round(tt / M.end * 100)}%` : `beach · candidates ${BEACH.candidates(tip[0], tip[1])}`;
+    }
+    requestAnimationFrame(frame);
+  })();
+}
+</script>
+</body>
+</html>

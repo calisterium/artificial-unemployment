@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A-play-I</title>
+<style>
+@font-face { font-family:'VT323'; src:url('fonts/VT323-Regular.ttf'); }
+:root { --ink:#120a2a; --magenta:#ff3fd0; }
+html, body { margin:0; height:100%; background:#000; overflow:hidden; }
+body { display:flex; align-items:center; justify-content:center; }
+#stage { position:relative; width:1440px; height:1440px; overflow:hidden; transform-origin:center; flex:none;
+  font-family:'Times New Roman', Times, serif; color:#fff; user-select:none; -webkit-user-select:none; }
+#world { position:absolute; inset:0; }
+
+/* ---------- background: Fortnite sky + rays under an 80% gray, net.art tiles, scanlines ---------- */
+#sky { position:absolute; inset:0;
+  background:radial-gradient(ellipse 55% 45% at var(--cx,50%) 55%, rgba(140,235,255,.85) 0%, rgba(80,170,255,.35) 35%, rgba(0,0,0,0) 70%),
+    linear-gradient(180deg, #2a0f7a 0%, #2238c9 38%, #2f86f2 70%, #63d6ff 100%); }
+#rays { position:absolute; left:-40%; top:-40%; width:180%; height:180%;
+  background:repeating-conic-gradient(from 0deg at var(--cx,50%) 54%, rgba(255,255,255,.13) 0deg 6deg, rgba(255,255,255,0) 6deg 15deg);
+  -webkit-mask:radial-gradient(circle at var(--cx,50%) 54%, #000 0%, #000 22%, transparent 48%);
+          mask:radial-gradient(circle at var(--cx,50%) 54%, #000 0%, #000 22%, transparent 48%); }
+#tiles { position:absolute; inset:0; opacity:.16; mix-blend-mode:screen;
+  background-image:radial-gradient(circle at 50% 50%, #fff 0 1.6px, transparent 2.2px),
+    linear-gradient(45deg, transparent 46%, rgba(255,255,255,.5) 47% 53%, transparent 54%);
+  background-size:48px 48px, 96px 96px; }
+#gray { position:absolute; inset:0; background:#bdbdbd; opacity:.8; }
+#scan { position:absolute; inset:0; pointer-events:none; opacity:.10; background:repeating-linear-gradient(0deg, #000 0 2px, transparent 2px 4px); }
+canvas#gl { position:absolute; inset:0; width:1440px; height:1440px; }
+canvas#static { position:absolute; inset:0; width:1440px; height:1440px; pointer-events:none; opacity:0; }
+#flash { position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; }
+
+/* ---------- screens ---------- */
+.scr { position:absolute; inset:0; display:none; }
+.scr.on { display:block; }
+
+/* title: chrome WordArt, A and I big, play small */
+.title { position:absolute; line-height:.8; white-space:nowrap; font-weight:bold; font-style:italic; }
+.title span { display:inline-block; background:linear-gradient(180deg, #ffffff 0%, #d6e4ff 30%, #6b7fa8 48%, #f4f7ff 52%, #9fb1d6 75%, #ffffff 100%);
+  -webkit-background-clip:text; background-clip:text; color:transparent; }
+.title .play { background:linear-gradient(180deg, #fff9c4 0%, #ffe14d 40%, #ff7ad9 55%, #ff3fd0 100%); -webkit-background-clip:text; background-clip:text; }
+.title.big { left:0; right:0; top:10px; text-align:center; letter-spacing:-4px; filter:drop-shadow(10px 10px 0 var(--ink)) drop-shadow(0 0 28px rgba(255,63,208,.7)); }
+.title.big span { -webkit-text-stroke:5px var(--ink); }
+.title.big .big { font-size:420px; } .title.big .play { font-size:192px; vertical-align:24px; margin:0 8px; }
+.title.big .dash { font-size:240px; vertical-align:60px; margin:0 -12px; }
+.title.small { left:48px; top:28px; letter-spacing:-2px; filter:drop-shadow(5px 5px 0 var(--ink)) drop-shadow(0 0 14px rgba(255,63,208,.7)); }
+.title.small span { -webkit-text-stroke:3px var(--ink); }
+.title.small .big { font-size:150px; } .title.small .play { font-size:69px; vertical-align:9px; margin:0 3px; }
+.title.small .dash { font-size:86px; vertical-align:21px; margin:0 -4px; }
+
+/* chrome push button (START / NEXT / SUBMIT) */
+.btn { position:absolute; display:block; box-sizing:border-box; padding:0; text-align:center; cursor:pointer;
+  font-family:'Times New Roman', Times, serif; font-weight:bold; line-height:1; color:var(--ink);
+  background:repeating-linear-gradient(0deg, rgba(255,255,255,.14) 0 2px, transparent 2px 5px),
+    linear-gradient(180deg, #ffffff 0%, #d6e4ff 30%, #6b7fa8 48%, #f4f7ff 52%, #9fb1d6 75%, #ffffff 100%);
+  border:7px solid; border-color:#ffffff #4a5a80 #4a5a80 #ffffff; outline:3px solid var(--ink);
+  box-shadow:0 0 50px rgba(255,63,208,.55), 16px 18px 0 var(--ink); }
+.btn:active, .btn.down { border-color:#4a5a80 #ffffff #ffffff #4a5a80; transform:translate(8px,9px); box-shadow:0 0 50px rgba(255,63,208,.55), 8px 9px 0 var(--ink); }
+.btn.start { left:120px; top:1110px; width:1200px; height:280px; font-size:192px; letter-spacing:8px; border-width:12px; outline-width:5px; }
+.btn.next { left:56px; top:1190px; width:830px; height:170px; font-size:110px; letter-spacing:4px; }
+
+.q { position:absolute; left:56px; top:196px; font-weight:bold; font-size:62px; color:#000; white-space:nowrap; }
+.q .hint { font-size:44px; font-weight:normal; }
+
+/* screen 2: three words + seniority cards */
+#words { position:absolute; left:56px; top:290px; display:flex; gap:20px; }
+#words input { width:262px; height:84px; box-sizing:border-box; padding:0 18px; background:#fff; border:5px solid; border-color:#404040 #fff #fff #404040;
+  box-shadow:inset 3px 3px 0 #808080, 8px 8px 0 rgba(18,10,42,.45); font:42px 'Times New Roman', Times, serif; color:#000; outline:none; border-radius:0; }
+#words input::placeholder { color:#9a9aa8; font-style:italic; }
+#cards { position:absolute; left:56px; top:496px; width:830px; display:grid; grid-template-columns:repeat(3, 1fr); gap:18px; }
+.card { position:relative; height:166px; overflow:hidden; cursor:pointer;
+  background:radial-gradient(ellipse 70% 70% at 50% 38%, var(--l) 0%, var(--m) 55%, var(--d) 100%);
+  border:9px solid; border-color:var(--l) var(--d) var(--d) var(--l); outline:4px solid var(--ink);
+  box-shadow:inset 0 0 0 2px rgba(255,255,255,.25), 9px 10px 0 var(--ink); }
+.card::before { content:''; position:absolute; inset:0; background:repeating-linear-gradient(-55deg, rgba(255,255,255,.10) 0 10px, transparent 10px 24px); }
+.card .name { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; font-weight:bold; font-size:42px; line-height:1; color:#fff;
+  text-shadow:3px 3px 0 var(--ink), -1px -1px 0 var(--ink), 1px -1px 0 var(--ink), -1px 1px 0 var(--ink); }
+.card.sel { border-color:var(--d) var(--l) var(--l) var(--d); transform:translate(5px,6px);
+  box-shadow:inset 4px 4px 10px rgba(0,0,0,.35), 0 0 0 9px #ff8fcf, 0 0 40px 16px rgba(255,63,208,.7), 4px 4px 0 var(--ink); }
+.card.sel .name { transform:translate(2px,3px); }
+
+/* screen 3: vertical slider, High at the bottom */
+#vslider { position:absolute; left:56px; top:300px; width:830px; height:860px; cursor:pointer; touch-action:none; }
+#vslider .track { position:absolute; left:70px; top:40px; width:60px; height:780px; box-sizing:border-box; background:#e8e8ee;
+  border:6px solid; border-color:#404040 #fff #fff #404040; box-shadow:inset 3px 3px 0 #808080, 8px 8px 0 rgba(18,10,42,.35); overflow:hidden; }
+#vslider .fill { position:absolute; left:0; right:0; bottom:0;
+  background:linear-gradient(0deg, #8c97a8 4%, #4fc93a 23%, #2f8cff 42%, #b14bff 61%, #ff9330 80%, #f5c428 99%); background-size:100% 768px; background-position:bottom; }
+#vslider .tick { position:absolute; left:150px; width:40px; height:6px; background:var(--ink); }
+#vslider .lab { position:absolute; left:214px; transform:translateY(-50%); font-weight:bold; font-size:56px; line-height:1; color:#3a3a46; white-space:nowrap; }
+#vslider .lab.on { color:#000; font-size:72px; }
+#vslider .knob, .dz .knob { box-sizing:border-box; border:7px solid; border-color:#ffffff #4a5a80 #4a5a80 #ffffff; outline:4px solid var(--ink); }
+#vslider .knob { position:absolute; left:30px; width:140px; height:72px; transform:translateY(-50%);
+  background:repeating-linear-gradient(90deg, transparent 0 52px, rgba(18,10,42,.35) 52px 55px, transparent 55px 61px, rgba(18,10,42,.35) 61px 64px, transparent 64px 70px, rgba(18,10,42,.35) 70px 73px, transparent 73px),
+    linear-gradient(180deg, #ffffff 0%, #d6e4ff 30%, #6b7fa8 48%, #f4f7ff 52%, #9fb1d6 75%, #ffffff 100%);
+  box-shadow:0 0 30px rgba(255,63,208,.6), 8px 9px 0 var(--ink); }
+
+/* screen 4: radio buttons */
+#radios { position:absolute; left:56px; top:390px; display:flex; flex-direction:column; gap:110px; }
+.radio { display:flex; align-items:center; gap:34px; font-weight:bold; font-size:68px; line-height:1; color:#000; cursor:pointer; }
+.radio .dot { position:relative; flex:none; width:84px; height:84px; border-radius:50%; background:#fff; box-sizing:border-box;
+  border:6px solid; border-color:#404040 #fff #fff #404040; box-shadow:inset 4px 4px 0 #808080, 6px 7px 0 rgba(18,10,42,.35); }
+.radio.on .dot::after { content:''; position:absolute; left:50%; top:50%; width:38px; height:38px; margin:-19px 0 0 -19px; border-radius:50%; background:#000; }
+
+/* screen 5: list box */
+#list { position:absolute; left:56px; top:330px; width:780px; box-sizing:border-box; padding:6px 70px 6px 6px; background:#fff;
+  border:6px solid; border-color:#404040 #fff #fff #404040; box-shadow:inset 3px 3px 0 #808080, 10px 10px 0 rgba(18,10,42,.35); }
+#list .opt { height:140px; padding:0 30px; font-weight:bold; font-size:68px; line-height:140px; color:#000; cursor:pointer; }
+#list .opt + .opt { border-top:2px dotted #b8b8c4; }
+#list .opt.on { background:#1c0f86; color:#fff; outline:3px dotted #ff8fcf; outline-offset:-6px; }
+#list .sb { position:absolute; right:6px; top:6px; bottom:6px; width:58px; background-image:repeating-conic-gradient(#c0c0c0 0 25%, #e8e8e8 0 50%); background-size:6px 6px; }
+#list .sb i, #list .sb b { position:absolute; left:0; right:0; display:block; height:58px; box-sizing:border-box; background:#c0c0c0; border:4px solid; border-color:#fff #404040 #404040 #fff;
+  font-style:normal; font-size:24px; line-height:50px; text-align:center; color:#000; }
+#list .sb i:first-child { top:0; } #list .sb i:last-child { bottom:0; } #list .sb b { top:62px; height:150px; }
+
+/* screen 6 */
+#num { position:absolute; left:40px; top:320px; line-height:.9; white-space:nowrap; font-weight:bold; font-style:italic; letter-spacing:-6px;
+  filter:drop-shadow(10px 10px 0 var(--ink)) drop-shadow(0 0 28px rgba(255,63,208,.7)); }
+#num span, #congrats span { display:inline-block; background:linear-gradient(180deg, #ffffff 0%, #d6e4ff 30%, #6b7fa8 48%, #f4f7ff 52%, #9fb1d6 75%, #ffffff 100%);
+  -webkit-background-clip:text; background-clip:text; color:transparent; -webkit-text-stroke:5px var(--ink); }
+#num span { font-size:300px; padding-right:20px; }
+#jobs { top:640px; }
+.link { position:absolute; color:#0000ee; text-decoration:underline; cursor:pointer; }
+.link:active { color:#ee0000; }
+#applyall { top:790px; font-size:152px; line-height:1.08; text-align:center; text-decoration-thickness:8px; text-underline-offset:16px; }
+
+/* screen 7 */
+#congrats { position:absolute; left:0; right:0; top:14px; text-align:center; line-height:.9; white-space:nowrap; font-weight:bold; font-style:italic;
+  letter-spacing:-6px; filter:drop-shadow(10px 10px 0 var(--ink)) drop-shadow(0 0 28px rgba(255,63,208,.7)); }
+#congrats span { font-size:220px; padding-right:24px; }
+#applied { position:absolute; left:0; right:0; top:236px; text-align:center; font-weight:bold; font-size:60px; color:#000; white-space:nowrap; }
+#dance { position:absolute; left:56px; top:1060px; width:880px; }
+.dz { display:flex; align-items:center; height:64px; }
+.dz .lab { flex:none; width:250px; font-weight:bold; font-size:44px; color:#000; }
+.dz .track { flex:none; position:relative; width:540px; height:34px; box-sizing:border-box; background:#e8e8ee; cursor:pointer; touch-action:none;
+  border:5px solid; border-color:#404040 #fff #fff #404040; box-shadow:inset 3px 3px 0 #808080; }
+.dz .track::after { content:''; position:absolute; left:-10px; right:-10px; top:-18px; bottom:-18px; }    /* bigger grab area */
+.dz .fill { position:absolute; left:0; top:0; bottom:0; background:linear-gradient(90deg, #ff8fcf, #b14bff 50%, #5fd3ff); background-size:530px 100%; }
+.dz .knob { position:absolute; top:50%; width:40px; height:62px; transform:translate(-50%,-50%); border-width:5px; outline-width:3px; z-index:1;
+  background:linear-gradient(90deg, #ffffff 0%, #d6e4ff 30%, #6b7fa8 48%, #f4f7ff 52%, #9fb1d6 75%, #ffffff 100%);
+  box-shadow:0 0 16px rgba(255,63,208,.6), 5px 6px 0 var(--ink); }
+.dz .val { margin-left:34px; font-family:'VT323', monospace; font-size:40px; color:#000; white-space:nowrap; }
+/* the words to try again: outside the degrading world, never degrade */
+#restart { text-shadow:0 0 6px #fff, 0 0 12px #fff, 0 0 18px #fff; right:56px; top:1250px; width:440px; text-align:center; font-size:64px; line-height:1.1; text-decoration-thickness:4px; text-underline-offset:8px; display:none; z-index:5; }
+
+/* screen 7: the whole page is painted into one picture (canvas) so it all degrades together;
+   the HTML sliders stay on top, invisible, to be dragged */
+#stage.flat #sky, #stage.flat #rays, #stage.flat #tiles, #stage.flat #gray, #stage.flat #scan { display:none; }
+#stage.flat #s7 { opacity:0; }
+/* review bar (?bar) */
+#bar { position:fixed; left:8px; top:8px; z-index:10; font:13px/1.4 monospace; color:#fff; background:rgba(0,0,0,.75); padding:6px 8px; display:none; }
+#bar button { font:12px monospace; }
+#bar input[type=range] { width:180px; vertical-align:middle; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script src="vhs.js"></script>
+<script src="audio.js"></script>
+</head>
+<body>
+<div id="stage">
+  <div id="world">
+    <div id="sky"></div><div id="rays"></div><div id="tiles"></div><div id="gray"></div>
+    <canvas id="gl" width="1440" height="1440"></canvas>
+    <div id="scan"></div>
+    <div class="ui">
+      <section class="scr" id="s1">
+        <div class="title big"><span class="big">A</span><span class="dash">-</span><span class="play">play</span><span class="dash">-</span><span class="big">I</span></div>
+        <button class="btn start" data-go="2">START</button>
+      </section>
+      <section class="scr" id="s2">
+        <div class="q">Describe the job you want in 3 words:</div>
+        <div id="words"><input maxlength="20" placeholder="word 1" spellcheck="false"><input maxlength="20" placeholder="word 2" spellcheck="false"><input maxlength="20" placeholder="word 3" spellcheck="false"></div>
+        <div class="q" style="top:408px">Seniority: <span class="hint">(choose one or more)</span></div>
+        <div id="cards"></div>
+        <button class="btn next" data-go="3">NEXT</button>
+      </section>
+      <section class="scr" id="s3">
+        <div class="q">Increase Job Match:</div>
+        <div id="vslider"><div class="track"><div class="fill"></div></div><div class="knob"></div></div>
+        <button class="btn next" data-go="4">NEXT</button>
+      </section>
+      <section class="scr" id="s4">
+        <div class="q">Have you ever had a pet?</div>
+        <div id="radios"></div>
+        <button class="btn next" data-go="5">NEXT</button>
+      </section>
+      <section class="scr" id="s5">
+        <div class="q">Which race is your pet?</div>
+        <div id="list"><div class="sb"><i>&#9650;</i><b></b><i>&#9660;</i></div></div>
+        <button class="btn next" data-go="6">SUBMIT</button>
+      </section>
+      <section class="scr" id="s6">
+        <div class="q">Your AI applier has found</div>
+        <div id="num"><span>99,999</span></div>
+        <div class="q" id="jobs">jobs.</div>
+        <a class="link" id="applyall" href="#">APPLY TO ALL JOBS AT ONCE!</a>
+      </section>
+      <section class="scr" id="s7">
+        <div id="congrats"><span>CONGRATS!</span></div>
+        <div id="applied">YOU HAVE APPLIED TO <span id="n">0</span> JOBS!</div>
+        <div id="dance"></div>
+      </section>
+    </div>
+  </div>
+  <canvas id="static" width="720" height="720"></canvas>
+  <a class="link" id="restart" href="#">Click here to restart!</a>
+  <div id="flash"></div>
+</div>
+<div id="bar"></div>
+
+<script>
+// ===================== interface (screens, controls) =====================
+const Q = new URLSearchParams(location.search);
+const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const stage = $('#stage');
+let SCALE = 1;
+function fit() { SCALE = Math.min(innerWidth, innerHeight) / 1440; stage.style.transform = `scale(${SCALE})`; }
+addEventListener('resize', fit); fit();
+
+// labels exactly as in Carlos' spreadsheet
+const SENIORITY = [
+  ['Intern', '#d7dde6','#8c97a8','#4f5a6b'], ['Analyst', '#b8f59a','#4fc93a','#21691a'], ['Specialist', '#9fd2ff','#2f8cff','#123f9a'],
+  ['Manager', '#e2b3ff','#b14bff','#561a93'], ['Sr Manager', '#ffd2a3','#ff9330','#a2420a'], ['Director', '#fff0a8','#f5c428','#8f6608'],
+  ['Sr Director', '#b8fff4','#2fd8c8','#0a6e6e'], ['Executive', '#ffb0e4','#e0329f','#5a0b4a'], ['Whichever', '#ffffff','#f6f6f8','#cfd0d8'],
+];
+const MATCH = ['High', 'Higher', 'Highest', 'Superhighest', 'Megahighest', 'Max forever'];
+const PET = ['Yes', 'No', 'I dont want to answer'];
+const RACE = ['Milaneso', 'Güero', 'Caramelo', 'Latino', 'Full breed'];
+const DANCE = [['tempo', 'Tempo', .5], ['bounce', 'Bounce', .6], ['sway', 'Hip sway', .5], ['arms', 'Arms', .7], ['chaos', 'Chaos', .15]];
+const sfx = n => (...a) => window.APA && APA.sfx[n](...a);
+
+// screen 2
+$('#cards').innerHTML = SENIORITY.map(([n, l, m, d]) => `<div class="card" style="--l:${l};--m:${m};--d:${d}"><div class="name">${n}</div></div>`).join('');
+$$('.card').forEach(c => c.addEventListener('click', () => { c.classList.toggle('sel'); sfx('select')(c.classList.contains('sel')); }));
+$$('#words input').forEach(i => i.addEventListener('keydown', e => { if (e.key === ' ') e.preventDefault(); sfx('key')(); }));
+
+// screen 3: vertical slider with 6 stops
+const VS = $('#vslider'), Y0 = 820, STEP = 148;
+MATCH.forEach((n, i) => VS.insertAdjacentHTML('beforeend', `<div class="tick" style="top:${Y0 - i * STEP - 33}px"></div><div class="lab" style="top:${Y0 - i * STEP - 30}px">${n}</div>`));
+let matchV = 0;
+function setMatch(v, snap) {
+  v = Math.max(0, Math.min(5, v)); if (snap) v = Math.round(v);
+  const old = Math.round(matchV); matchV = v;
+  const ky = Y0 - v * STEP - 30;
+  $('.knob', VS).style.top = ky + 'px'; $('.fill', VS).style.height = Math.max(0, 814 - ky) + 'px';
+  $$('.lab', VS).forEach((l, i) => l.classList.toggle('on', i === Math.round(v)));
+  if (Math.round(v) !== old) sfx('tick')(Math.round(v));
+}
+function dragV(e) { const r = VS.getBoundingClientRect(); const y = (e.clientY - r.top) / SCALE; setMatch((Y0 - 30 - y) / STEP, false); }
+VS.addEventListener('pointerdown', e => { VS.setPointerCapture(e.pointerId); dragV(e); VS.onpointermove = dragV; });
+VS.addEventListener('pointerup', () => { VS.onpointermove = null; setMatch(matchV, true); });
+
+// screen 4: radios
+$('#radios').innerHTML = PET.map(n => `<label class="radio"><span class="dot"></span>${n}</label>`).join('');
+$$('.radio').forEach(r => r.addEventListener('click', () => { $$('.radio').forEach(x => x.classList.toggle('on', x === r)); sfx('click')(); }));
+
+// screen 5: list box
+$('#list').insertAdjacentHTML('afterbegin', RACE.map(n => `<div class="opt">${n}</div>`).join(''));
+$$('#list .opt').forEach(o => o.addEventListener('click', () => { $$('#list .opt').forEach(x => x.classList.toggle('on', x === o)); sfx('click')(); }));
+
+// screen 6: centre the link on the centre of "99,999"
+function centreApplyAll() {
+  const n = $('#num span'), l = $('#applyall');
+  const cx = n.parentElement.offsetLeft + n.offsetLeft + (n.offsetWidth - 20) / 2, w = 2 * Math.min(cx, 1440 - cx) - 8;
+  l.style.width = w + 'px'; l.style.left = (cx - w / 2) + 'px';
+}
+
+// screen 7: the 5 dance sliders
+const DV = {};
+$('#dance').innerHTML = DANCE.map(([k, n]) => `<div class="dz" data-k="${k}"><div class="lab">${n}</div><div class="track"><div class="fill"></div><div class="knob"></div></div><div class="val"></div></div>`).join('');
+function setDance(k, v) {
+  v = Math.max(0, Math.min(1, v)); DV[k] = v;
+  const row = $(`.dz[data-k="${k}"]`);
+  $('.fill', row).style.width = v * 100 + '%'; $('.knob', row).style.left = v * 100 + '%';
+  if (k === 'tempo') { $('.val', row).textContent = bpmOf(v) + ' BPM'; window.APA && APA.setBpm(bpmOf(v)); }
+  if (k === 'chaos') window.APA && APA.setChaos(v);
+}
+const bpmOf = v => Math.round(60 + v * 120);           // 60 .. 180 BPM
+$$('.dz').forEach(row => {
+  const tr = $('.track', row), k = row.dataset.k; let last = -1;
+  const drag = e => { const r = tr.getBoundingClientRect(); const v = (e.clientX - r.left) / r.width; setDance(k, v);
+    const q = Math.round(DV[k] * 10); if (q !== last) { last = q; sfx('tick')(q * 0.6); } };
+  tr.addEventListener('pointerdown', e => { tr.setPointerCapture(e.pointerId); drag(e); tr.onpointermove = drag; });
+  tr.addEventListener('pointerup', () => { tr.onpointermove = null; });
+});
+
+function resetAnswers() {
+  $$('#words input').forEach(i => i.value = '');
+  $$('.card').forEach(c => c.classList.remove('sel'));
+  $$('.radio, #list .opt').forEach(x => x.classList.remove('on'));
+  setMatch(0, true);
+  DANCE.forEach(([k, , v]) => setDance(k, v));
+}
+resetAnswers();
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+const S = 1440, stage = document.getElementById('stage'), Q = new URLSearchParams(location.search), $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+// EMBED: inside essay.html (an iframe): no restart link; leaving the view and coming back restarts the game.
+// RENDER: ?render=1&t=<s> draws one frame of the self-playing loop (grid video), deterministic.
+const RENDER = Q.has('render'), EMBED = !RENDER && (window.self !== window.top || Q.has('essay'));
+if (RENDER) { let a = 279; Math.random = () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const renderer = new THREE.WebGLRenderer({ canvas:$('#gl'), antialias:true, alpha:true, preserveDrawingBuffer:RENDER });
+renderer.setPixelRatio(1); renderer.setSize(S, S, false); renderer.setClearColor(0x000000, 0);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(22, 1, 0.1, 100);
+
+// camera, figure and pedestal for each screen (from the approved stills)
+const CAM = {
+  1: { p:[0, 1.85, 12.2], l:[0, 0.96, 0], gx:0, gy:-0.18, ped:[1, 1], cx:'50%' },
+  2: { p:[-1.4, 1.85, 13.4], l:[-1.4, 0.9, 0], gx:0, gy:-0.18, ped:[1, 1], cx:'80%' },
+  7: { p:[0, 1.9, 12.6], l:[0, 0.62, 0], gx:-0.68, gy:0.12, ped:[1.75, 1.4], cx:'50%' },
+};
+const camOf = n => CAM[n] || CAM[2];
+
+// ---------- cel shader (3 bands + hard highlight + rim) and outline ----------
+const LIGHT = new THREE.Vector3(-0.55, 0.75, 0.6).normalize();
+const toonMats = [];
+function toonMat(opts = {}) {
+  const m = new THREE.ShaderMaterial({
+    uniforms: { uColor:{ value:new THREE.Color(opts.color ?? 0xffffff) }, uLight:{ value:LIGHT.clone() }, uRim:{ value:new THREE.Color(opts.rim ?? 0x8fe8ff) }, uSpec:{ value:opts.spec ?? 1.0 } },
+    vertexShader: `varying vec3 vN; varying vec3 vV;
+      void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `uniform vec3 uColor, uLight, uRim; uniform float uSpec; varying vec3 vN; varying vec3 vV;
+      void main(){ vec3 n = normalize(vN), v = normalize(vV), l = normalize(uLight); float d = dot(n, l);
+        float band = d > 0.45 ? 1.0 : (d > -0.05 ? 0.78 : 0.56); vec3 base = uColor;
+        vec3 shade = mix(base * vec3(0.55, 0.5, 0.85), base, band);
+        float spec = smoothstep(0.985, 0.99, dot(n, normalize(l + v))) * uSpec;
+        float rim = smoothstep(0.66, 0.70, 1.0 - dot(n, v)) * smoothstep(-0.2, 0.3, -d + 0.3);
+        gl_FragColor = vec4(shade + uRim * rim * 0.45 + vec3(spec), 1.0); }`,
+  });
+  toonMats.push(m); return m;
+}
+const outlineMat = (w) => new THREE.ShaderMaterial({ side:THREE.BackSide, uniforms:{ uW:{ value:w } },
+  vertexShader:`uniform float uW; void main(){ gl_Position = projectionMatrix * modelViewMatrix * vec4(position + normal * uW, 1.0); }`,
+  fragmentShader:`void main(){ gl_FragColor = vec4(0.07, 0.04, 0.16, 1.0); }` });
+function addOutlined(mesh, w) { mesh.add(new THREE.Mesh(mesh.geometry, outlineMat(w))); return mesh; }
+
+// ---------- pedestal ----------
+const ped = new THREE.Group();
+const disc = addOutlined(new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.95, 0.16, 96), toonMat({ color:0x3a2a8c, rim:0xff3fd0, spec:0.6 })), 0.02);
+disc.position.y = -0.08; ped.add(disc);
+const pedTop = new THREE.Mesh(new THREE.CircleGeometry(0.84, 64), new THREE.MeshBasicMaterial({ color:0x5fd3ff, transparent:true, opacity:0.55 }));
+pedTop.rotation.x = -Math.PI / 2; pedTop.position.y = 0.002; ped.add(pedTop);
+for (const [r, c, o] of [[0.86, 0xff8fcf, 1], [1.05, 0x5fd3ff, 0.6], [1.25, 0xff3fd0, 0.35]]) {
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.012, 8, 96), new THREE.MeshBasicMaterial({ color:c, transparent:true, opacity:o }));
+  ring.rotation.x = Math.PI / 2; ring.position.y = 0.01; ped.add(ring);
+}
+scene.add(ped);
+function blobShadow() {
+  const m = new THREE.Mesh(new THREE.CircleGeometry(0.42, 48), new THREE.MeshBasicMaterial({ color:0x120a2a, transparent:true, opacity:0.35, depthWrite:false }));
+  m.rotation.x = -Math.PI / 2; m.position.y = 0.006; m.scale.set(1, 0.6, 1); scene.add(m); return m;
+}
+const gShadow = blobShadow(), rShadow = blobShadow();
+
+// ---------- the gummy: capsules smooth-unioned, ray-marched on the GPU (same look as the marching-cubes stills) ----------
+const N = 16;
+const CANDY = { pink:0xff5fa2, yellow:0xffd23f, orange:0xff8a3d, mint:0x35d99a, blue:0x4d9de0, lilac:0xa98bff, cyan:0x22c7c0 };
+const CAP_COL = ['pink','pink','yellow','orange','lilac','lilac','blue','cyan','cyan','blue','mint','mint','yellow','blue','blue','pink'].map(k => new THREE.Color(CANDY[k]));
+const CAP_R = [[.225,.225],[.1,.085],[.2,.21],[.19,.19],[.105,.085],[.085,.07],[.062,.058],[.105,.085],[.085,.07],[.062,.058],[.075,.065],[.065,.058],[.072,.072],[.078,.066],[.066,.058],[.074,.074]];
+const gummyU = {
+  uA:{ value:Array.from({ length:N }, () => new THREE.Vector3()) }, uB:{ value:Array.from({ length:N }, () => new THREE.Vector3()) },
+  uR:{ value:CAP_R.map(r => new THREE.Vector2(...r)) }, uC:{ value:CAP_COL.map(c => new THREE.Vector3(c.r, c.g, c.b)) },
+  uLight:{ value:LIGHT.clone() }, uNoise:{ value:0 }, uTime:{ value:0 },
+};
+const gummyMat = new THREE.ShaderMaterial({
+  uniforms:gummyU,
+  vertexShader:`varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+  fragmentShader:`
+    #define N ${N}
+    uniform mat4 projectionMatrix;
+    uniform vec3 uA[N]; uniform vec3 uB[N]; uniform vec2 uR[N]; uniform vec3 uC[N]; uniform vec3 uLight; uniform float uNoise, uTime;
+    varying vec3 vW;
+    float sdCap(vec3 p, vec3 a, vec3 b, vec2 r){ vec3 pa = p - a, ba = b - a; float l2 = dot(ba, ba);
+      float h = l2 > 1e-8 ? clamp(dot(pa, ba) / l2, 0.0, 1.0) : 0.0; return length(pa - ba * h) - mix(r.x, r.y, h); }
+    float smin(float a, float b, float k){ float h = max(k - abs(a - b), 0.0) / k; return min(a, b) - h * h * k * 0.25; }
+    float map(vec3 p){ float d = 1e9; for (int i = 0; i < N; i++) d = smin(d, sdCap(p, uA[i], uB[i], uR[i]), 0.07);
+      if (uNoise > 0.0) d += uNoise * sin(p.x * 37.0 + uTime * 5.0) * sin(p.y * 41.0 - uTime * 4.0) * sin(p.z * 29.0 + uTime * 3.0);
+      return d; }
+    vec3 colAt(vec3 p){ float ds[N]; float dmin = 1e9;
+      for (int i = 0; i < N; i++){ ds[i] = sdCap(p, uA[i], uB[i], uR[i]); dmin = min(dmin, ds[i]); }
+      vec3 c = vec3(0.0); float ws = 0.0;
+      for (int i = 0; i < N; i++){ float w = exp(-(ds[i] - dmin) / 0.035); c += uC[i] * w; ws += w; }
+      return c / ws; }
+    void main(){
+      vec3 ro = cameraPosition, rd = normalize(vW - ro);
+      float t = length(vW - ro), tEnd = t + 4.0, minD = 1e9, tMin = t; bool hit = false;
+      for (int i = 0; i < 110; i++){
+        float d = map(ro + rd * t);
+        if (d < minD){ minD = d; tMin = t; }
+        if (d < 0.0006){ hit = true; break; }
+        t += d * (uNoise > 0.0 ? 0.6 : 0.9);
+        if (t > tEnd) break;
+      }
+      vec3 p; vec3 col;
+      if (hit){
+        p = ro + rd * t;
+        vec2 e = vec2(0.0015, 0.0);
+        vec3 n = normalize(vec3(map(p + e.xyy) - map(p - e.xyy), map(p + e.yxy) - map(p - e.yxy), map(p + e.yyx) - map(p - e.yyx)));
+        vec3 v = -rd, l = normalize(uLight); float dl = dot(n, l);
+        float band = dl > 0.45 ? 1.0 : (dl > -0.05 ? 0.78 : 0.56);
+        vec3 base = colAt(p);
+        vec3 shade = mix(base * vec3(0.55, 0.5, 0.85), base, band);
+        float spec = smoothstep(0.985, 0.99, dot(n, normalize(l + v)));
+        float rim = smoothstep(0.66, 0.70, 1.0 - dot(n, v)) * smoothstep(-0.2, 0.3, -dl + 0.3);
+        col = shade + vec3(0.56, 0.91, 1.0) * rim * 0.45 + vec3(spec);
+        // the silhouette line also runs where the body turns away (thin contour, like the back-face outline)
+        col = mix(col, vec3(0.07, 0.04, 0.16), smoothstep(0.16, 0.08, dot(n, v)));
+      } else if (minD < 0.012){
+        p = ro + rd * tMin; col = vec3(0.07, 0.04, 0.16);
+      } else discard;
+      vec4 clip = projectionMatrix * viewMatrix * vec4(p, 1.0);
+      gl_FragDepth = clamp(0.5 * clip.z / clip.w + 0.5, 0.0, 1.0);
+      gl_FragColor = vec4(col, 1.0);
+    }`,
+});
+const gummyBox = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2.7, 2.0), gummyMat);
+scene.add(gummyBox);
+// eyes: round with a catch-light (lobby), happy arcs (dance)
+const eyeMat = new THREE.MeshBasicMaterial({ color:0x0d0b14 }), whiteMat = new THREE.MeshBasicMaterial({ color:0xffffff });
+const eyes = [-1, 1].map(() => {
+  const round = new THREE.Mesh(new THREE.SphereGeometry(0.042, 24, 16), eyeMat); round.scale.set(1, 1.15, 0.6);
+  const glint = new THREE.Mesh(new THREE.SphereGeometry(0.012, 12, 8), whiteMat);
+  const happy = new THREE.Mesh(new THREE.TorusGeometry(0.036, 0.011, 10, 24, Math.PI), eyeMat);
+  scene.add(round, glint, happy); return { round, glint, happy };
+});
+
+// ---------- the rig: one skeleton drives the gummy and (mirrored) the AI robot ----------
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const L1 = 0.335, L2 = 0.34;
+function ik(H, A, hint) {                          // two-bone leg: knee from hip, ankle and a bend hint
+  const d = Math.min(H.distanceTo(A), L1 + L2 - 1e-4), dir = A.clone().sub(H).normalize();
+  const a = (L1 * L1 - L2 * L2 + d * d) / (2 * d), h = Math.sqrt(Math.max(L1 * L1 - a * a, 0));
+  const b = hint.clone().addScaledVector(dir, -hint.dot(dir)).normalize();
+  return H.clone().addScaledVector(dir, a).addScaledVector(b, h);
+}
+function arm(Sh, s, abd, e, zf = 0.04) {            // abd: 0 = hanging, PI/2 = sideways, PI = up; e = elbow turn
+  const u = V(s * Math.sin(abd), -Math.cos(abd), 0);
+  const E = Sh.clone().addScaledVector(u, 0.31); E.z += zf;
+  const ang = Math.atan2(u.y, u.x) + s * e, f = V(Math.cos(ang), Math.sin(ang), 0);
+  const W = E.clone().addScaledVector(f, 0.27); W.z += zf;
+  return { E, W, Hd:W.clone().addScaledVector(f, 0.04) };
+}
+// st: { px, py, lean, tilt, nod, yaw, arms:{ '-1':{abd,e}, '1':{abd,e} }, fx, lift:{ '-1', '1' }, kneeOut }
+function solve(st, mirror) {
+  const m = mirror ? -1 : 1, lean = st.lean * m;
+  const P = V(st.px * m, st.py, 0), u = V(Math.sin(lean), Math.cos(lean), 0), rt = V(Math.cos(lean), -Math.sin(lean), 0);
+  const ht = lean + st.tilt * m, hu = V(Math.sin(ht), Math.cos(ht), -st.nod * 0.35).normalize();
+  const J = { P, u, rt, hu };
+  J.bellyTop = P.clone().addScaledVector(u, 0.18);
+  J.chestBot = P.clone().addScaledVector(u, 0.22); J.chestTop = P.clone().addScaledVector(u, 0.40);
+  J.neckBot = P.clone().addScaledVector(u, 0.38); J.neckTop = J.neckBot.clone().addScaledVector(hu, 0.14);
+  J.head = J.neckBot.clone().addScaledVector(hu, 0.32);
+  const C = P.clone().addScaledVector(u, 0.42);
+  for (const s of [-1, 1]) {
+    const as = st.arms[s * m];                       // mirrored: the robot's left does what the gummy's right does
+    const Sh = C.clone().addScaledVector(rt, 0.2 * s);
+    J['S' + s] = Sh; Object.assign(J, Object.fromEntries(Object.entries(arm(Sh, s, as.abd, as.e)).map(([k, v]) => [k + s, v])));
+    const Hp = P.clone().addScaledVector(rt, 0.1 * s).addScaledVector(u, -0.04);
+    const A = V(s * st.fx, 0.09 + st.lift[s * m], 0);
+    J['H' + s] = Hp; J['A' + s] = A; J['K' + s] = ik(Hp, A, V(s * st.kneeOut, 0, 1));
+    J['T' + s] = A.clone().add(V(s * 0.035, -0.035, 0.12));
+  }
+  // turn the whole body (yaw) about the pelvis axis
+  const yaw = st.yaw * m, cy = Math.cos(yaw), sy = Math.sin(yaw);
+  for (const k in J) if (J[k] instanceof THREE.Vector3 && !['u', 'rt', 'hu'].includes(k)) {
+    const p = J[k], x = p.x - P.x, z = p.z; p.x = P.x + x * cy + z * sy; p.z = -x * sy + z * cy;
+  }
+  for (const k of ['u', 'rt', 'hu']) { const p = J[k], x = p.x, z = p.z; p.x = x * cy + z * sy; p.z = -x * sy + z * cy; }
+  J.yaw = yaw;
+  return J;
+}
+function capsulesOf(J) {                            // same 16 slots as the stills (head ... left hand)
+  return [[J.head, J.head], [J.neckBot, J.neckTop], [J.chestBot, J.chestTop], [J.P, J.bellyTop],
+    [J.H1, J.K1], [J.K1, J.A1], [J.A1, J.T1], [J['H-1'], J['K-1']], [J['K-1'], J['A-1']], [J['A-1'], J['T-1']],
+    [J.S1, J.E1], [J.E1, J.W1], [J.Hd1, J.Hd1], [J['S-1'], J['E-1']], [J['E-1'], J['W-1']], [J['Hd-1'], J['Hd-1']]];
+}
+
+// ---------- poses ----------
+const HIP = { abd:0.86, e:-1.56 }, UP = { abd:2.55, e:0.1 }, ACROSS = { abd:-0.35, e:0.25 };
+const lerp = (a, b, t) => a + (b - a) * t, ease = x => x * x * (3 - 2 * x), fract = x => x - Math.floor(x), clamp01 = x => Math.max(0, Math.min(1, x));
+const mixA = (a, b, t) => ({ abd:lerp(a.abd, b.abd, t), e:lerp(a.e, b.e, t) });
+const hash = n => fract(Math.sin(n * 127.1 + 311.7) * 43758.5453);
+const vn = x => (Math.sin(x * 2.1) + 0.6 * Math.sin(x * 3.7 + 1.3) + 0.3 * Math.sin(x * 7.3 + 4.1)) / 1.9;
+function idlePose(t) {
+  const w = Math.sin(t * 4.5);
+  return { px:0.012 * Math.sin(t * 1.3), py:0.8 + 0.006 * Math.sin(t * 2.2), lean:0.02 * Math.sin(t * 1.3), tilt:0.05 * Math.sin(t * 1.1), nod:0, yaw:0,
+    arms:{ '-1':{ abd:2.3 + 0.1 * w, e:0.63 + 0.35 * w }, '1':HIP }, fx:0.17, lift:{ '-1':0, '1':0 }, kneeOut:0.25 };
+}
+// dance moves: the gummy's arms per beat B; the robot gets the mirror
+const pulse = ph => Math.exp(-ph * 5);
+const MOVES = [
+  (B, s) => s < 0 ? mixA(UP, ACROSS, ease(Math.abs(fract(B / 2) * 2 - 1))) : HIP,                          // disco point
+  (B, s) => { const p = pulse(fract(B)); return { abd:1.75 + 0.75 * p, e:1.9 - 1.1 * p }; },                  // raise the roof
+  (B, s) => ({ abd:2.75 + 0.22 * Math.sin(Math.PI * B) * s, e:0.25 + 0.25 * Math.sin(Math.PI * B + s) }),     // hands up, waving
+  (B, s) => { const p = pulse(fract(B)); return s > 0 ? { abd:2.1 + 0.6 * p, e:1.3 - 0.9 * p } : HIP; },      // fist pump
+];
+function moveAt(B, chaos) {
+  const seg = Math.floor(B / 8), pick = k => chaos > 0.35 && hash(k * 3.1) < chaos ? Math.floor(hash(k * 7.7) * 4) : ((k % 4) + 4) % 4;
+  return { a:pick(seg), b:pick(seg + 1), t:ease(clamp01((fract(B / 8) * 8 - 7.5) / 0.5)) };
+}
+function dancePose(B, D, t) {
+  const bn = D.bounce, sw = D.sway, am = D.arms, ch = D.chaos;
+  const drop = bn * 0.1 * Math.pow(0.5 + 0.5 * Math.cos(2 * Math.PI * B), 2);
+  const sway = sw * 0.13 * Math.sin(Math.PI * B);
+  const beat = Math.floor(B), jump = hash(beat * 1.37 + 5) < ch * 0.25 ? 0.13 * Math.sin(Math.PI * fract(B)) : 0;
+  const mv = moveAt(B, ch), arms = {};
+  for (const s of [-1, 1]) {
+    const hang = { abd:0.22 + 0.15 * Math.sin(Math.PI * B) * s, e:0.18 };
+    let a = mixA(MOVES[mv.a](B, s), MOVES[mv.b](B, s), mv.t);
+    a = mixA(hang, a, am);
+    a.abd += ch * 0.9 * vn(B * 1.3 + s * 7); a.e += ch * 1.1 * vn(B * 1.7 + s * 3);
+    arms[s] = a;
+  }
+  // chaos: now and then a full spin on the first beat of a bar
+  const bar = Math.floor(B / 4), spin = ch > 0.45 && hash(bar * 2.3) < (ch - 0.45) * 1.6 ? 2 * Math.PI * ease(clamp01(fract(B / 4) * 4)) : 0;
+  const heel = s => bn * 0.05 * Math.max(0, Math.sin(Math.PI * (B + (s > 0 ? 1 : 0))));
+  return { px:sway + ch * 0.06 * vn(B * 0.9), py:0.8 - drop + jump, lean:-sway * 1.1 + ch * 0.15 * vn(B + 9),
+    tilt:sway * 1.4 + ch * 0.4 * vn(B * 2 + 3), nod:0.35 * bn * Math.cos(2 * Math.PI * B), yaw:spin + ch * 0.3 * vn(B * 0.7 + 11),
+    arms, fx:0.16, lift:{ '-1':heel(-1) + jump, '1':heel(1) + jump }, kneeOut:0.3 + bn * 0.5 };
+}
+function mixPose(a, b, t) {
+  if (t <= 0) return a; if (t >= 1) return b;
+  const o = {}; for (const k of ['px', 'py', 'lean', 'tilt', 'nod', 'yaw', 'fx', 'kneeOut']) o[k] = lerp(a[k], b[k], t);
+  o.arms = { '-1':mixA(a.arms[-1], b.arms[-1], t), '1':mixA(a.arms[1], b.arms[1], t) };
+  o.lift = { '-1':lerp(a.lift[-1], b.lift[-1], t), '1':lerp(a.lift[1], b.lift[1], t) };
+  return o;
+}
+
+// ---------- the AI robot ----------
+function canvasTex(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'));
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }
+const faceTex = canvasTex(256, 192, x => {
+  x.fillStyle = '#120a2a'; x.fillRect(0, 0, 256, 192);
+  for (let y = 0; y < 192; y += 4) { x.fillStyle = 'rgba(255,255,255,.05)'; x.fillRect(0, y, 256, 2); }
+  x.strokeStyle = '#5fd3ff'; x.lineWidth = 16; x.lineCap = 'round'; x.shadowColor = '#5fd3ff'; x.shadowBlur = 18;
+  for (const cx of [78, 178]) { x.beginPath(); x.arc(cx, 92, 30, Math.PI * 1.08, Math.PI * 1.92); x.stroke(); }
+  x.beginPath(); x.arc(128, 104, 48, Math.PI * 0.2, Math.PI * 0.8); x.stroke();
+});
+const chestTex = canvasTex(256, 256, x => {
+  x.font = 'bold italic 190px "Times New Roman", Times, serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.lineWidth = 14; x.strokeStyle = '#120a2a'; x.strokeText('AI', 124, 140); x.fillStyle = '#ff3fd0'; x.fillText('AI', 124, 140);
+});
+const robot = new THREE.Group(); scene.add(robot);
+const METAL = 0xc9cde0, DARK = 0x6b7090, PINK = 0xff8fcf;
+function rbox(w, h, d, color) { return addOutlined(new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 4, Math.min(w, h, d) * 0.22), toonMat({ color, rim:0xff3fd0 })), 0.012); }
+const unitCyl = new THREE.CylinderGeometry(1, 1, 1, 20);
+function rlimb(r) { const m = addOutlined(new THREE.Mesh(unitCyl, toonMat({ color:DARK, rim:0xff3fd0 })), 0.01); m.userData.r = r; robot.add(m); return m; }
+function rball(r, color) { const m = addOutlined(new THREE.Mesh(new THREE.SphereGeometry(r, 20, 14), toonMat({ color, rim:0xff3fd0 })), 0.008); robot.add(m); return m; }
+const R = {
+  torso:rbox(0.46, 0.5, 0.32, METAL), hips:rbox(0.36, 0.14, 0.26, DARK), head:rbox(0.44, 0.36, 0.34, METAL),
+  handL:rbox(0.13, 0.13, 0.13, PINK), handR:rbox(0.13, 0.13, 0.13, PINK), footL:rbox(0.17, 0.1, 0.28, METAL), footR:rbox(0.17, 0.1, 0.28, METAL),
+  limbs:[...Array(9)].map((_, i) => rlimb(i === 0 ? 0.07 : i < 5 ? 0.058 : 0.068)),
+  joints:[...Array(4)].map(() => rball(0.06, DARK)), ball:rball(0.045, PINK), ant:rlimb(0.012),
+};
+for (const k of ['torso', 'hips', 'head', 'handL', 'handR', 'footL', 'footR']) robot.add(R[k]);
+const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.34), new THREE.MeshBasicMaterial({ map:chestTex, transparent:true }));
+plate.position.z = 0.165; R.torso.add(plate);
+const face = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.26), new THREE.MeshBasicMaterial({ map:faceTex })); face.position.z = 0.172; R.head.add(face);
+const Y = V(0, 1, 0), tmpQ = new THREE.Quaternion();
+function place(m, a, b) { const d = b.clone().sub(a), l = d.length(); m.position.copy(a).addScaledVector(d, 0.5);
+  m.quaternion.setFromUnitVectors(Y, d.normalize()); m.scale.set(m.userData.r, Math.max(l, 1e-3), m.userData.r); }
+function orient(m, up, yaw, pos) { m.position.copy(pos); tmpQ.setFromUnitVectors(Y, up.clone().normalize()); m.quaternion.setFromAxisAngle(Y, yaw).premultiply(tmpQ); }
+function poseRobot(J, jit) {
+  const j = () => V((Math.random() - .5) * jit, (Math.random() - .5) * jit, 0);
+  orient(R.torso, J.u, J.yaw, J.P.clone().addScaledVector(J.u, 0.2).add(j()));
+  orient(R.hips, J.u, J.yaw, J.P.clone().addScaledVector(J.u, -0.12));
+  orient(R.head, J.hu, J.yaw, J.head.clone().add(V(0, -0.03, 0)).add(j()));
+  const top = J.head.clone().addScaledVector(J.hu, 0.17);
+  place(R.ant, top, top.clone().addScaledVector(J.hu, 0.17)); R.ball.position.copy(top).addScaledVector(J.hu, 0.2);
+  const L = R.limbs;
+  place(L[0], J.neckBot, J.neckTop.clone().addScaledVector(J.hu, -0.04));
+  place(L[1], J['S-1'], J['E-1']); place(L[2], J['E-1'], J['W-1']); place(L[3], J.S1, J.E1); place(L[4], J.E1, J.W1);
+  place(L[5], J['H-1'], J['K-1']); place(L[6], J['K-1'], J['A-1']); place(L[7], J.H1, J.K1); place(L[8], J.K1, J.A1);
+  [J['E-1'], J.E1, J['K-1'], J.K1].forEach((p, i) => R.joints[i].position.copy(p));
+  R.handL.position.copy(J['Hd-1']).add(j()); R.handR.position.copy(J.Hd1).add(j());
+  R.footL.position.copy(J['A-1']).add(V(0, -0.04, 0.05)); R.footR.position.copy(J.A1).add(V(0, -0.04, 0.05));
+  R.footL.rotation.y = R.footR.rotation.y = J.yaw;
+}
+
+// ---------- floating APPLY monitors ----------
+function labelTex(txt, bg, fg) { return canvasTex(256, 192, x => {
+  x.fillStyle = bg; x.fillRect(0, 0, 256, 192);
+  for (let y = 0; y < 192; y += 4) { x.fillStyle = 'rgba(0,0,0,.25)'; x.fillRect(0, y, 256, 2); }
+  x.fillStyle = fg; x.font = 'bold 58px monospace'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(txt, 128, 96); }); }
+const crtBody = new THREE.BoxGeometry(0.5, 0.4, 0.42), crtScr = new THREE.PlaneGeometry(0.38, 0.28), SCREENS = {};
+function crt(txt, bg, fg, k = 1) {
+  const g = new THREE.Group();
+  g.add(addOutlined(new THREE.Mesh(crtBody, toonMat({ color:0xd8d2c0, rim:0xff3fd0 })), 0.012));
+  const key = bg + fg; SCREENS[key] = SCREENS[key] || new THREE.MeshBasicMaterial({ map:labelTex(txt, bg, fg) });
+  const sc = new THREE.Mesh(crtScr, SCREENS[key]); sc.position.z = 0.212; g.add(sc);
+  g.scale.setScalar(k); return g;
+}
+const G = ['#101820', '#39ff6a'], P_ = ['#2a0050', '#ff3fd0'], Yl = ['#003a6a', '#d9ff3b'];
+const SETS = {
+  1: [[G,1.0,[-1.9,2.1,-1.5],[0,.3,0]],[P_,1.2,[1.9,2.2,-1.8],[.22,-.6,-.03]],[Yl,1.3,[-1.75,.85,-.5],[-.22,.38,.06]],[G,.9,[1.7,.9,-.6],[0,-.58,-.09]],
+      [P_,.6,[-1.2,1.95,-2.5],[.21,.45,.12]],[Yl,.7,[.95,.45,-1.6],[-.22,-.54,-.14]],[G,.8,[-2.7,1.5,-3],[.01,.51,.16]],[P_,.9,[2.75,1.4,-3.2],[.21,-.49,-.18]],
+      [Yl,.5,[-1.05,1.3,-1.2],[-.22,.56,.19]],[G,.55,[1.15,1.6,-1],[.01,-.42,-.2]],[P_,1.0,[-.95,.5,-1.8],[.21,.59,.2]],[Yl,.7,[-2.15,.15,.4],[-.22,.34,-.2]],[G,.8,[2.1,.05,.2],[.02,-.6,.19]]],
+  2: [[G,.8,[.6,3.05,-1.5],[.12,-.5,-.12]],[P_,.6,[-.35,3.85,-4.5],[.12,.4,.15]],[Yl,.7,[.75,.35,-.6],[.12,-.6,-.12]],[G,1.0,[1.1,1.55,-2.5],[.12,-.7,.15]],
+      [P_,.55,[1.25,.95,-3.2],[.12,.5,-.12]],[G,.75,[.75,-.55,.6],[.1,-.5,-.1]]],
+  6: [],
+  7: [[G,.9,[-2.35,1.45,-1.5],[.12,.6,-.12]],[P_,.7,[-2.05,.15,-2.6],[.12,.4,.15]],[Yl,.8,[2.3,1.55,-1.4],[.12,-.6,.12]],[G,.6,[2.05,.1,-2.8],[.12,-.5,-.12]],
+      [P_,.55,[-2.55,.55,-.6],[.1,.7,.1]],[Yl,.6,[2.6,.6,-.8],[.1,-.7,-.1]]],
+};
+{ let r = 7; const rnd = () => (r = (r * 16807) % 2147483647) / 2147483647;          // screen 6: the crowd of 99,999 jobs
+  for (let i = 0; i < 70; i++) { const C = [G, P_, Yl][i % 3];
+    SETS[6].push([C, 0.35 + rnd() * 0.5, [-0.45 + rnd() * 2.9, -1.0 + rnd() * 5.4, -4 - rnd() * 7], [rnd() - .5, (rnd() - .5) * 1.6, (rnd() - .5) * .6]]); } }
+const monitorGroups = {};
+for (const k in SETS) {
+  const grp = new THREE.Group(); grp.visible = false; scene.add(grp); monitorGroups[k] = grp;
+  for (const [C, s, p, rot] of SETS[k]) { const m = crt('APPLY', C[0], C[1], s); m.position.set(...p); m.rotation.set(...rot); m.userData.base = { p:[...p], r:[...rot] }; grp.add(m); }
+}
+const setOf = n => n === 1 ? 1 : n === 7 ? 7 : 2;
+
+// ---------- degradation: screen 7 is one picture (painted page + 3D), degraded all at once ----------
+const rt = new THREE.WebGLRenderTarget(S, S, { samples:4 });
+const uiCanvas = document.createElement('canvas'); uiCanvas.width = uiCanvas.height = S;
+const uiTex = new THREE.CanvasTexture(uiCanvas); uiTex.colorSpace = THREE.NoColorSpace; uiTex.flipY = true;
+const postScene = new THREE.Scene(), postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const postU = { uTex:{ value:rt.texture }, uUI:{ value:uiTex }, uD:{ value:0 }, uTime:{ value:0 }, uBlock:{ value:1 }, uRes:{ value:new THREE.Vector2(S, S) } };
+postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({ uniforms:postU, depthTest:false,
+  vertexShader:`varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
+  fragmentShader:`uniform sampler2D uTex, uUI; uniform float uD, uTime, uBlock; uniform vec2 uRes; varying vec2 vUv;
+    float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+    vec3 pic(vec2 q){ vec4 g = texture2D(uTex, q); vec3 u = texture2D(uUI, q).rgb; return u * (1.0 - g.a) + g.rgb; }
+    void main(){
+      vec2 px = vUv * uRes; float fr = floor(uTime * 12.0);
+      float row = floor(px.y / (4.0 + 40.0 * uD));
+      px.x += step(0.001, uD) * step(1.0 - uD * 0.45, h(vec2(row, fr))) * (h(vec2(row, fr + 7.0)) - 0.5) * uD * 180.0;
+      vec2 q = (floor(px / uBlock) + 0.5) * uBlock / uRes;                    // the same big pixels everywhere
+      float ca = uD * 12.0 / uRes.x;
+      vec3 c = vec3(pic(q + vec2(ca, 0.0)).r, pic(q).g, pic(q - vec2(ca, 0.0)).b);
+      float l = dot(c, vec3(0.299, 0.587, 0.114)); c = mix(vec3(l), c, 1.0 + 0.9 * uD);
+      c = (c - 0.5) * (1.0 + 0.5 * uD) + 0.5;
+      float lv = mix(60.0, 3.0, pow(uD, 1.1)); if (uD > 0.0) c = floor(c * lv + 0.5) / lv;
+      vec2 blk = floor(px / (24.0 + 60.0 * uD));
+      if (uD > 0.15 && h(blk + fr * 0.37) < (uD - 0.15) * 0.12) c = vec3(0.0);   // GPU fract can dip below 0: guard it
+      gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+    }` })));
+
+// paint screen 7 (background, CONGRATS, the number, the sliders) exactly where the HTML has it
+const CHROME = [[0, '#ffffff'], [.30, '#d6e4ff'], [.48, '#6b7fa8'], [.52, '#f4f7ff'], [.75, '#9fb1d6'], [1, '#ffffff']];
+let bg7 = null, uiKey = '';
+function paintBg7() {
+  const c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d');
+  let g = x.createLinearGradient(0, 0, 0, S); [[0, '#2a0f7a'], [.38, '#2238c9'], [.7, '#2f86f2'], [1, '#63d6ff']].forEach(([o, k]) => g.addColorStop(o, k));
+  x.fillStyle = g; x.fillRect(0, 0, S, S);
+  x.save(); x.translate(720, 792); x.scale(1, 648 / 792);
+  g = x.createRadialGradient(0, 0, 0, 0, 0, 792); g.addColorStop(0, 'rgba(140,235,255,.85)'); g.addColorStop(.35, 'rgba(80,170,255,.35)'); g.addColorStop(.7, 'rgba(0,0,0,0)');
+  x.fillStyle = g; x.fillRect(-1000, -1200, 2000, 2400); x.restore();
+  const r = document.createElement('canvas'); r.width = r.height = S; const y = r.getContext('2d');      // light rays
+  y.translate(720, 778); y.fillStyle = 'rgba(255,255,255,.13)';
+  for (let a = 0; a < 360; a += 15) { y.beginPath(); y.moveTo(0, 0); y.arc(0, 0, 2000, (a - 90) * Math.PI / 180, (a - 84) * Math.PI / 180); y.fill(); }
+  y.setTransform(1, 0, 0, 1, 0, 0); y.globalCompositeOperation = 'destination-in';
+  g = y.createRadialGradient(720, 778, 0, 720, 778, 880); g.addColorStop(0, '#000'); g.addColorStop(.46, '#000'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  y.fillStyle = g; y.fillRect(0, 0, S, S); x.drawImage(r, 0, 0);
+  x.fillStyle = 'rgba(255,255,255,.16)'; for (let j = 24; j < S; j += 48) for (let i = 24; i < S; i += 48) { x.beginPath(); x.arc(i, j, 1.8, 0, 7); x.fill(); }
+  x.fillStyle = 'rgba(189,189,189,.8)'; x.fillRect(0, 0, S, S);
+  x.fillStyle = 'rgba(0,0,0,.1)'; for (let j = 0; j < S; j += 4) x.fillRect(0, S - j - 2, S, 2);
+  // CONGRATS! in the chrome of the title
+  x.font = 'italic bold 220px "Times New Roman", Times, serif'; x.textAlign = 'center'; x.textBaseline = 'alphabetic';
+  if ('letterSpacing' in x) x.letterSpacing = '-6px';
+  const cx = 720, by = 186;
+  x.save(); x.shadowColor = 'rgba(255,63,208,.7)'; x.shadowBlur = 28; x.fillStyle = '#120a2a'; x.strokeStyle = '#120a2a'; x.lineWidth = 5;
+  x.fillText('CONGRATS!', cx + 10, by + 10); x.strokeText('CONGRATS!', cx + 10, by + 10); x.restore();
+  g = x.createLinearGradient(0, 14, 0, 212); CHROME.forEach(([o, k]) => g.addColorStop(o, k));
+  x.fillStyle = g; x.fillText('CONGRATS!', cx, by); x.strokeStyle = '#120a2a'; x.lineWidth = 5; x.strokeText('CONGRATS!', cx, by);
+  if ('letterSpacing' in x) x.letterSpacing = '0px';
+  // slider labels and empty tracks
+  DANCE.forEach(([, n], i) => {
+    const yc = 1092 + 64 * i;
+    x.fillStyle = '#000'; x.font = 'bold 44px "Times New Roman", Times, serif'; x.textAlign = 'left'; x.textBaseline = 'middle'; x.fillText(n, 56, yc + 2);
+    x.fillStyle = '#404040'; x.fillRect(306, yc - 17, 540, 34);
+    x.fillStyle = '#fff'; x.beginPath(); x.moveTo(846, yc - 17); x.lineTo(846, yc + 17); x.lineTo(306, yc + 17); x.lineTo(311, yc + 12); x.lineTo(841, yc + 12); x.lineTo(841, yc - 12); x.fill();
+    x.fillStyle = '#e8e8ee'; x.fillRect(311, yc - 12, 530, 24);
+    x.fillStyle = '#808080'; x.fillRect(311, yc - 12, 530, 3); x.fillRect(311, yc - 12, 3, 24);
+  });
+  return c;
+}
+function paintUI7() {
+  const key = $('#n').textContent + DANCE.map(([k]) => DV[k].toFixed(4)).join();
+  if (key === uiKey) return; uiKey = key;
+  const x = uiCanvas.getContext('2d'); x.drawImage(bg7, 0, 0);
+  x.fillStyle = '#000'; x.font = 'bold 60px "Times New Roman", Times, serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillText(`YOU HAVE APPLIED TO ${$('#n').textContent} JOBS!`, 720, 270);
+  DANCE.forEach(([k], i) => {
+    const yc = 1092 + 64 * i, v = DV[k], kx = 311 + v * 530;
+    const g = x.createLinearGradient(311, 0, 841, 0); g.addColorStop(0, '#ff8fcf'); g.addColorStop(.5, '#b14bff'); g.addColorStop(1, '#5fd3ff');
+    x.fillStyle = g; x.fillRect(311, yc - 12, v * 530, 24);
+    // chrome knob 40x62: glow, hard shadow, ink outline, bevel, chrome face
+    x.save(); x.shadowColor = 'rgba(255,63,208,.6)'; x.shadowBlur = 16; x.fillStyle = '#120a2a'; x.fillRect(kx - 20 + 5, yc - 31 + 6, 40, 62); x.restore();
+    x.fillStyle = '#120a2a'; x.fillRect(kx - 23, yc - 34, 46, 68);
+    x.fillStyle = '#4a5a80'; x.fillRect(kx - 20, yc - 31, 40, 62);
+    x.fillStyle = '#ffffff'; x.beginPath(); x.moveTo(kx - 20, yc + 31); x.lineTo(kx - 20, yc - 31); x.lineTo(kx + 20, yc - 31); x.lineTo(kx + 15, yc - 26); x.lineTo(kx - 15, yc - 26); x.lineTo(kx - 15, yc + 26); x.fill();
+    const c = x.createLinearGradient(kx - 15, 0, kx + 15, 0); CHROME.forEach(([o, k2]) => c.addColorStop(o, k2));
+    x.fillStyle = c; x.fillRect(kx - 15, yc - 26, 30, 52);
+    if (k === 'tempo') { x.fillStyle = '#000'; x.font = '40px VT323, monospace'; x.textAlign = 'left'; x.fillText(bpmOf(v) + ' BPM', 880, yc + 2); }
+  });
+  uiTex.needsUpdate = true;
+}
+
+const sCanvas = $('#static'), sRenderer = new THREE.WebGLRenderer({ canvas:sCanvas, alpha:true, premultipliedAlpha:true, preserveDrawingBuffer:RENDER });
+sRenderer.setPixelRatio(1); sRenderer.setSize(720, 720, false);
+const sU = Object.assign(window.VHS.uniforms(Math.floor(Math.random() * 1e6)), { uT:{ value:0 } });
+const sScene = new THREE.Scene();
+sScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({ uniforms:sU, depthTest:false,
+  vertexShader:`varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
+  fragmentShader:`${window.VHS.GLSL}\n uniform float uT; varying vec2 vUv; void main(){ gl_FragColor = vec4(vhs(vUv, uT), 1.0); }` })));
+
+// ===================== game state =====================
+const DEG_SECONDS = 90;                 // fully degraded after 1.5 minutes on screen 7
+let screen = 0, prevScreen = 1, tScreen = 0, camT = 1, degT = 0, degSpeed = 1, danceMix = 0, robotIn = 0, beatOwn = 0, frameN = 0, heldPose = null;
+const camFrom = { p:V(0, 1.85, 12.2), l:V(0, 0.96, 0), gx:0, gy:-0.18, ped:[1, 1] }, camNow = { p:V(), l:V(), gx:0, gy:0, ped:[1, 1] };
+function go(n, quiet) {
+  if (n === screen) return;
+  Object.assign(camFrom, { p:camNow.p.clone(), l:camNow.l.clone(), gx:camNow.gx, gy:camNow.gy, ped:[...camNow.ped] });
+  if (screen === 0) { const c = camOf(n); camFrom.p.set(...c.p); camFrom.l.set(...c.l); camFrom.gx = c.gx; camFrom.gy = c.gy; camFrom.ped = [...c.ped]; }
+  prevScreen = screen; screen = n; tScreen = 0; camT = 0;
+  $$('.scr').forEach(s => s.classList.toggle('on', s.id === 's' + n));
+  $('#restart').style.display = n === 7 && !EMBED && !RENDER ? 'block' : 'none';
+  stage.classList.toggle('flat', n === 7); uiKey = '';
+  if (n === 7 && !bg7) bg7 = paintBg7();
+  document.documentElement.style.setProperty('--cx', camOf(n).cx);
+  for (const k in monitorGroups) monitorGroups[k].visible = +k === setOf(n) || (n === 6 && +k === 6);
+  if (!quiet) { window.APA && APA.sfx.whoosh(); const f = $('#flash'); f.style.transition = 'none'; f.style.opacity = 0.55;
+    requestAnimationFrame(() => { f.style.transition = 'opacity .35s'; f.style.opacity = 0; }); }
+  if (n === 6) requestAnimationFrame(centreApplyAll);
+  if (n === 7) {
+    $('#n').textContent = (1 + Math.floor(Math.random() * 999999999)).toLocaleString('en-US');
+    degT = +(Q.get('deg') || 0); robotIn = 0;
+    window.APA && APA.dance(60 + Math.round(window.DVv().tempo * 120));
+  }
+  if (n === 1) { degT = 0; window.resetAnswersPublic && window.resetAnswersPublic(); window.APA && APA.running && APA.lobby(); }
+}
+window.DVv = () => DV;                 // the dance slider values (set by the interface script)
+window.resetAnswersPublic = () => { /* answers are reset by the interface script */ resetAnswers(); };
+
+// buttons and links
+$$('[data-go]').forEach(b => b.addEventListener('click', () => {
+  if (b.dataset.go === '2') { window.APA && (APA.init(), APA.lobby()); }
+  window.APA && APA.sfx.click(); go(+b.dataset.go);
+}));
+$('#applyall').addEventListener('click', e => { e.preventDefault(); window.APA && APA.sfx.sparkle(); go(7); });
+$('#restart').addEventListener('click', e => { e.preventDefault(); window.APA && APA.sfx.click(); go(1); });
+
+// review bar (?bar): jump to a screen, scrub the degradation clock, speed it up
+if (Q.has('bar')) {
+  const bar = $('#bar'); bar.style.display = 'block';
+  bar.innerHTML = 'screen ' + [1, 2, 3, 4, 5, 6, 7].map(i => `<button data-s="${i}">${i}</button>`).join('') +
+    ' &nbsp; degradation <input type="range" id="degR" min="0" max="90" step="1" value="0"> <span id="degV">0 s</span>' +
+    ' &nbsp; speed <select id="degS"><option>1</option><option>10</option><option>30</option></select>';
+  bar.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { window.APA && APA.init(); if (!window.APA.running) {} go(+b.dataset.s); });
+  $('#degR').oninput = e => { degT = +e.target.value; };
+  $('#degS').onchange = e => { degSpeed = +e.target.value; };
+}
+
+// ===================== frame loop =====================
+const clock = new THREE.Clock(); let T = 0;
+const gPos = V(), tmp = V();
+let DRAW = true;
+function frame(simDt) {
+  const dt = simDt ?? Math.min(clock.getDelta(), 0.1); T += dt; tScreen += dt; frameN++;
+  // degradation clock: runs only on screen 7, never shown
+  if (screen === 7) degT = Math.min(DEG_SECONDS, degT + dt * degSpeed);
+  const d = screen === 7 ? degT / DEG_SECONDS : 0;
+  if (Q.has('bar')) { $('#degR').value = degT; $('#degV').textContent = degT.toFixed(0) + ' s'; }
+  window.APA && APA.setDegrade(d);
+
+  // camera and layout transition
+  camT = Math.min(1, camT + dt / 0.8); const k = ease(camT), c = camOf(screen || 1);
+  camNow.p.lerpVectors(camFrom.p, V(...c.p), k); camNow.l.lerpVectors(camFrom.l, V(...c.l), k);
+  camNow.gx = lerp(camFrom.gx, c.gx, k); camNow.gy = lerp(camFrom.gy, c.gy, k);
+  camNow.ped = [lerp(camFrom.ped[0], c.ped[0], k), lerp(camFrom.ped[1], c.ped[1], k)];
+  camera.position.copy(camNow.p); camera.lookAt(camNow.l); camera.updateMatrixWorld();
+  ped.scale.set(camNow.ped[0], 1, camNow.ped[1]);
+
+  // pose: idle on the lobby screens, dance on screen 7 (blended in); choppy as it degrades
+  danceMix = screen === 7 ? Math.min(1, danceMix + dt / 0.8) : Math.max(0, danceMix - dt / 0.5);
+  const D = window.DVv(), bpm = 60 + D.tempo * 120;
+  beatOwn += dt * bpm / 60;
+  const B = (window.APA && APA.beatNow()) ?? beatOwn;
+  const hold = 1 + Math.floor(9 * d * d);
+  if (!heldPose || frameN % hold === 0) heldPose = mixPose(idlePose(T), dancePose(B, D, T), ease(danceMix));
+  const pose = heldPose;
+
+  // gummy
+  const Jg = solve(pose, false), gx = camNow.gx, gyaw = camNow.gy;
+  const rotY = (p) => { const x = p.x, z = p.z, cy = Math.cos(gyaw), sy = Math.sin(gyaw); return V(gx + x * cy + z * sy, p.y, -x * sy + z * cy); };
+  const caps = capsulesOf(Jg);
+  caps.forEach(([a, b], i) => { gummyU.uA.value[i].copy(rotY(a)); gummyU.uB.value[i].copy(rotY(b)); });
+  gummyU.uNoise.value = 0.03 * Math.pow(d, 1.5); gummyU.uTime.value = T;
+  gummyBox.position.set(gx, 0.95, 0);
+  gShadow.position.x = gx + Jg.P.x * 0.6; gShadow.position.z = 0.02;
+  // eyes stay on the face: head centre + look direction
+  const head = rotY(Jg.head), up = Jg.hu.clone(), fwd = V(0, 0, 1), totalYaw = Jg.yaw + gyaw;
+  fwd.applyAxisAngle(Y, totalYaw); up.applyAxisAngle(Y, gyaw);
+  const right = fwd.clone().cross(up).negate().normalize(), f2 = right.clone().cross(up).normalize();
+  const happy = danceMix > 0.5;
+  [-1, 1].forEach((s, i) => {
+    const dir = right.clone().multiplyScalar(s * 0.36).addScaledVector(up, 0.16).addScaledVector(f2, 0.92).normalize();
+    const e = eyes[i];
+    e.round.visible = e.glint.visible = !happy; e.happy.visible = happy;
+    e.round.position.copy(head).addScaledVector(dir, 0.222); e.round.lookAt(e.round.position.clone().add(dir));
+    e.glint.position.copy(e.round.position).addScaledVector(dir, 0.02).addScaledVector(up, 0.016).addScaledVector(right, -0.012);
+    e.happy.position.copy(head).addScaledVector(dir, 0.232); e.happy.up.copy(up); e.happy.lookAt(e.happy.position.clone().add(dir));
+  });
+
+  // robot: only on screen 7, pops in after the fanfare
+  robotIn = screen === 7 ? Math.min(1, robotIn + dt / 0.5) : 0;
+  robot.visible = rShadow.visible = robotIn > 0;
+  if (robot.visible) {        // the robot copies the gummy's pose exactly (not a mirror)
+    const Jr = solve(pose, false), pop = robotIn < 1 ? 1 + 2.7 * Math.pow(robotIn - 1, 3) + 1.7 * Math.pow(robotIn - 1, 2) : 1;
+    poseRobot(Jr, 0.05 * d * d);
+    robot.position.set(0.7, 0, 0); robot.rotation.y = 0.12; robot.scale.setScalar(Math.max(0.001, pop));
+    rShadow.position.set(0.7 + Jr.P.x * 0.6, 0.006, 0.02);
+  }
+
+  // monitors drift
+  for (const k in monitorGroups) if (monitorGroups[k].visible) monitorGroups[k].children.forEach((m, i) => {
+    const b = m.userData.base; m.position.y = b.p[1] + 0.05 * Math.sin(T * 0.8 + i * 1.7); m.rotation.y = b.r[1] + 0.12 * Math.sin(T * 0.45 + i);
+  });
+
+  // light direction for the toon materials (view space)
+  const lv = LIGHT.clone().transformDirection(camera.matrixWorldInverse);
+  for (const m of toonMats) m.uniforms.uLight.value.copy(lv);
+  gummyU.uLight.value.copy(LIGHT);
+
+  // render: screens 1-6 straight; screen 7 as one picture through the degrading pass
+  if (!DRAW) {}
+  else if (screen !== 7) { renderer.setRenderTarget(null); renderer.render(scene, camera); }
+  else {
+    paintUI7();
+    renderer.setRenderTarget(rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(scene, camera);
+    renderer.setRenderTarget(null);
+    postU.uD.value = d; postU.uTime.value = T; postU.uBlock.value = 1 + Math.floor(Math.pow(d, 1.6) * 36);
+    renderer.render(postScene, postCam);
+  }
+  // the static creeps in over the whole picture at once: flashes first, then it stays; at 1.5 minutes it is all there is
+  if (d > 0) {
+    const base = Math.pow(clamp01((d - 0.3) / 0.7), 1.4), burst = Math.random() < d * 0.06 ? 0.35 + 0.4 * Math.random() : 0;
+    const a = Math.min(1, Math.max(base, burst * d));
+    sCanvas.style.opacity = a.toFixed(3);
+    if (a > 0 && DRAW) { sU.uT.value = T; sRenderer.render(sScene, postCam); }
+  } else sCanvas.style.opacity = 0;
+
+  if (!RENDER) requestAnimationFrame(() => frame());
+}
+document.fonts && document.fonts.load('40px VT323').then(() => { uiKey = ''; });
+// ---------- essay: restart when the game leaves the view and comes back ----------
+if (EMBED && 'IntersectionObserver' in window) {
+  let away = false;
+  new IntersectionObserver(es => { for (const e of es) {
+    if (e.intersectionRatio < 0.1) { if (!away) { away = true; window.APA && APA.pause(); } }
+    else if (away && e.intersectionRatio >= 0.5) {
+      away = false;
+      if (screen === 7) go(1, true);                 // back to the start, polished again
+      window.APA && APA.resume();
+    }
+  } }, { threshold:[0, 0.1, 0.5, 1] }).observe(stage);
+}
+
+// ---------- the self-playing loop for the grid (23 s = 690 frames) ----------
+const LOOP = 23;
+const SCRIPT = [
+  [1.45, () => $('.btn.start').classList.add('down')], [1.6, () => { $('.btn.start').classList.remove('down'); go(2, true); }],
+  ...[...'any job please'].map((ch, i) => [2.2 + i * 0.08, () => { const w = 'any job please'.slice(0, i + 1).split(' ');
+      $$('#words input').forEach((inp, k) => inp.value = w[k] || ''); }]),
+  [3.6, () => $$('.card')[8].classList.add('sel')], [3.85, () => $$('.card')[7].classList.add('sel')],
+  [4.25, () => $('#s2 .btn').classList.add('down')], [4.4, () => { $('#s2 .btn').classList.remove('down'); go(3, true); }],
+  ...[...Array(13)].map((_, i) => [4.8 + i * 0.1, () => setMatch(i === 12 ? 5 : i * 5 / 12, i === 12)]),
+  [6.25, () => $('#s3 .btn').classList.add('down')], [6.4, () => { $('#s3 .btn').classList.remove('down'); go(4, true); }],
+  [7.0, () => $$('.radio')[2].classList.add('on')],
+  [7.65, () => $('#s4 .btn').classList.add('down')], [7.8, () => { $('#s4 .btn').classList.remove('down'); go(5, true); }],
+  [8.4, () => $$('#list .opt')[2].classList.add('on')],
+  [9.05, () => $('#s5 .btn').classList.add('down')], [9.2, () => { $('#s5 .btn').classList.remove('down'); go(6, true); }],
+  [10.8, () => $('#applyall').style.color = '#ee0000'], [11.0, () => { $('#applyall').style.color = ''; go(7, true); degSpeed = 9; }],
+];
+async function renderAt(t) {
+  await document.fonts.ready; await document.fonts.load('40px VT323');
+  const n = Math.round(t * 30); DRAW = false; let k = 0;
+  go(1, true);
+  for (let i = 0; i < n; i++) {
+    const ti = (i + 1) / 30;
+    while (k < SCRIPT.length && SCRIPT[k][0] <= ti) SCRIPT[k++][1]();
+    frame(1 / 30);
+  }
+  DRAW = true; uiKey = ''; frame(0);
+  window.__done = true;
+}
+// start
+if (RENDER) { $('#bar').style.display = 'none'; renderAt(+(Q.get('t') || 0) % LOOP); }
+else { go(+(Q.get('screen') || 1), true); frame(); }
+window.__ready = true;
+</script>
+</body>
+</html>

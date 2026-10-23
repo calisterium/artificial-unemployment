@@ -1,0 +1,1 @@
+Space Mono (Colophon Foundry) and VT323 (Peter Hull) are used under the SIL Open Font License 1.1, https://openfontlicense.org. They are embedded in scroll-down-to-apply.html.

@@ -1,0 +1,162 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>MATCH CATCH</title>
+<link rel="stylesheet" href="fonts.css">
+<style>
+  body { background:#c0c0c0; color:#000; font-family:"Times New Roman",Times,serif; margin:12px; }
+  #wrap { display:flex; gap:16px; align-items:flex-start; }
+  #out { height:calc(100vh - 70px); width:auto; aspect-ratio:2690 / 3626; display:block; border:2px inset #fff; background:#6e9d79; touch-action:manipulation; user-select:none; -webkit-user-select:none; }
+  #ui { flex:1; min-width:340px; max-width:560px; max-height:calc(100vh - 70px); overflow:auto; }
+  #bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  #clock { font-family:"Courier New",monospace; font-size:14px; background:#fff; border:2px inset #fff; padding:2px 6px; display:block; white-space:pre; }
+  table { border-collapse:collapse; background:#fff; border:2px inset #fff; margin-top:8px; }
+  td, th { border:1px solid #808080; padding:2px 8px; font-size:14px; text-align:left; }
+  td input { width:64px; }
+  th.sec { background:#e4e4e4; }
+  button, select, input { font-family:inherit; font-size:14px; }
+  /* game.html?bar=0 : only the game, as it will be embedded in the site */
+  body.bare { margin:0; background:#000; overflow:hidden; }
+  body.bare #wrap { display:block; }
+  body.bare #out { height:min(100vh, 100vw * 3626 / 2690); margin:0 auto; border:0; }   /* whole picture in view, never stretched, also in a narrow window */
+  body.bare #ui, body.bare #head { display:none; }
+</style>
+</head>
+<body>
+<div id="head"><b>CALI STERIUM</b> &middot; <i>work 07 (MATCH CATCH)</i> &middot; playable game with tuning bar<hr></div>
+<div id="wrap">
+<canvas id="out" width="1345" height="1813"></canvas>
+<div id="ui">
+  <div id="bar">
+    <button id="pause">&#10074;&#10074; pause</button>
+    <button id="restart">restart</button>
+    <label><input type="checkbox" id="auto"> auto-play</label>
+    job <input type="number" id="job" min="1" max="10" value="1" style="width:46px"> <button id="go">go</button>
+  </div>
+  <p><span id="clock">loading…</span></p>
+  <table id="tune"></table>
+  <p><button id="reset">default values</button> <button id="copy">copy values</button> <span id="copied"></span></p>
+  <p><small>Click the three red buttons (or START / RESTART) on the picture. "first job" and "10th job" are the two ends of the
+  difficulty; the jobs in between go in a straight line from one to the other. Values are remembered in this browser.</small></p>
+</div>
+</div>
+<script src="hand_data.js"></script>
+<script>window.MC_IMG_EXT = '.webp';</script>
+<script src="mc.js"></script>
+<script src="game.js"></script>
+<script>
+(function () {
+  const q = new URLSearchParams(location.search), bare = !q.has('bar');     // published copy: only the game; add ?bar to the address for the tuning bar
+  if (bare) document.body.classList.add('bare');
+  const cv = document.getElementById('out'), ctx = cv.getContext('2d'), $ = id => document.getElementById(id);
+  const KEY = 'matchcatch_tuning_v3', T = MCG.T;
+  // remembered values: only the known ones, and only plain numbers from 0 up (anything else could break the game for good)
+  if (!bare) try { const o = JSON.parse(localStorage.getItem(KEY) || '{}'); Object.keys(MCG.DEFAULTS).forEach(k => { if (typeof o[k] === 'number' && isFinite(o[k]) && o[k] >= 0) T[k] = o[k]; }); } catch (e) {}
+
+  // ---- tuning table
+  const ROWS = [
+    ['Difficulty', null],
+    ['fall speed, first job (px/s)', 'speed0', 10], ['fall speed, 10th job (px/s)', 'speed1', 10],
+    ['seconds between candidates, first job', 'spawn0', 0.05], ['seconds between candidates, 10th job', 'spawn1', 0.05],
+    ['most candidates on screen, first job', 'max0', 1], ['most candidates on screen, 10th job', 'max1', 1],
+    ['matching candidates (%)', 'match', 1],
+    ['Animation (seconds)', null],
+    ['arm press', 'press', 0.01], ['catch: candidate lights up', 'hitFlash', 0.05], ['catch: hand reaches in', 'reach', 0.05],
+    ['catch: dragged out', 'drag', 0.05], ['catch: merges into the mass', 'merge', 0.05], ['paper change (whole)', 'paper', 0.1],
+    ['purple after a fault', 'faultFlash', 0.05],
+    ['Other', null],
+    ['alien hands sway (degrees)', 'wave', 1], ['auto-play mistakes (%)', 'botError', 1]
+  ];
+  const inputs = {};
+  ROWS.forEach(r => {
+    const tr = $('tune').insertRow();
+    if (!r[1]) { const th = document.createElement('th'); th.colSpan = 2; th.className = 'sec'; th.textContent = r[0]; tr.appendChild(th); return; }
+    tr.insertCell().textContent = r[0];
+    const i = document.createElement('input'); i.type = 'number'; i.step = r[2]; i.min = 0; i.value = T[r[1]];
+    i.oninput = () => { const v = parseFloat(i.value); if (isFinite(v) && v >= 0) { T[r[1]] = v; save(); } };
+    tr.insertCell().appendChild(i); inputs[r[1]] = i;
+  });
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(T)); } catch (e) {} }
+  $('reset').onclick = () => { Object.assign(T, MCG.DEFAULTS); Object.keys(inputs).forEach(k => inputs[k].value = T[k]); save(); };
+  $('copy').onclick = () => { const t = JSON.stringify(T); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => $('copied').textContent = 'copied', () => $('copied').textContent = t); };
+
+  // ---- canvas size: as many pixels as it shows on screen
+  let scale = 0.5;
+  function fit() {
+    const r = cv.getBoundingClientRect(), h = Math.min(MC.H, Math.max(600, Math.round(r.height * (window.devicePixelRatio || 1))));
+    scale = h / MC.H; cv.height = h; cv.width = Math.round(MC.W * scale); shown = null;
+    // a moment later, when the size has settled, the big pictures are made ready for it (also the purple ones, first
+    // needed at the first fault), so that no frame of the game has to wait for them
+    clearTimeout(warmT); warmT = setTimeout(() => { try { spare.setTransform(scale, 0, 0, scale, 0, 0); MC.warm(spare); } catch (e) {} }, 200);
+  }
+  const spare = document.createElement('canvas').getContext('2d'); let warmT = 0;
+  window.addEventListener('resize', fit);
+
+  // ---- pointer
+  const at = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left - cv.clientLeft) * MC.W / cv.clientWidth, (e.clientY - r.top - cv.clientTop) * MC.H / cv.clientHeight]; };
+  // a click is answered on the spot: the click is applied and the picture painted without waiting for the next frame
+  // (and the game is first brought up to date if frames have stopped coming, so START / RESTART answer even then)
+  cv.addEventListener('pointerdown', e => {
+    if (e.button) return;                                   // main button or finger only
+    e.preventDefault(); const p = at(e);
+    try { if (performance.now() - beat > 100) tick(performance.now()); MCG.click(p[0], p[1]); paint(); } catch (err) { console.error(err); }
+  });
+  cv.addEventListener('pointermove', e => { const p = at(e); cv.style.cursor = MCG.target(p[0], p[1]) != null ? 'pointer' : 'default'; });
+
+  // ---- bar
+  let paused = false;
+  $('pause').onclick = () => { paused = !paused; $('pause').innerHTML = paused ? '&#9654; play' : '&#10074;&#10074; pause'; };
+  $('restart').onclick = () => { MCG.reset(); };
+  $('auto').onchange = () => { MCG.state().auto = $('auto').checked; };
+  $('go').onclick = () => MCG.jumpTo(parseInt($('job').value, 10) - 1);
+
+  // ---- loop: fixed steps of 1/60 s
+  const DT = 1 / 60; let last = 0, acc = 0, fps = 60, lastEvent = '', shown = null, beat = 0;
+  MCG.onEvent = name => { lastEvent = name; };
+  function tick(now) {                                      // brings the game up to "now"
+    const d = Math.max(0, Math.min(0.1, (now - last) / 1000)); last = now;
+    if (d > 0.004) fps = fps * 0.95 + (1 / d) * 0.05;         // (a click between two frames is not a frame)
+    if (paused) return;
+    // A frame that ends within 0.7 ms of a whole number of steps counts as exactly that many and nothing is carried
+    // over. Without this the 1/60 s steps and the screen's own rhythm slide past each other, and every so often frames
+    // come with no step or with two: everything that moves trembles (Safari tells the time of a frame only to the
+    // millisecond, which makes it worse). On a 60 Hz screen every frame now gets exactly one step.
+    acc += d;
+    let n = Math.round(acc / DT);
+    if (n >= 1 && Math.abs(acc - n * DT) < 0.0007) acc = 0;
+    else { n = Math.floor(acc / DT + 1e-9); acc = Math.max(0, acc - n * DT); }
+    for (; n > 0; n--) MCG.step(DT);
+  }
+  function paint() {
+    // start, game over and win are still pictures: painted once and then left alone (no work at all while the player
+    // waits there) until the game, the size of the window or the fonts change
+    const key = MCG.still();
+    if (key && key === shown) return;
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    MCG.draw(ctx); shown = key;
+    if (!bare) {
+      const s = MCG.state();
+      $('clock').textContent = s.mode.toUpperCase().padEnd(6) + ' job ' + String(s.job + 1).padStart(2) + '/' + MCG.JOBS + '   score ' + s.score + '   faults ' + s.faults + '/3\n' +
+        'on screen ' + s.cands.length + '/' + MCG.maxOn() + '   speed ' + Math.round(MCG.speed()) + ' px/s   ' + Math.round(fps) + ' fps\n' +
+        'last event: ' + lastEvent;
+    }
+  }
+  function run(now) { try { tick(now); paint(); } catch (e) { console.error(e); } }     // one bad frame must never stop the next ones
+  function frame(now) { requestAnimationFrame(frame); beat = performance.now(); run(now); }
+  const repaint = () => { shown = null; };
+  document.addEventListener('visibilitychange', repaint); window.addEventListener('pageshow', repaint);
+  if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', repaint);   // a font that arrives late
+  // safety net: if the browser stops calling frame() while the page is in view, a timer takes over until it calls again
+  setInterval(() => { if (!document.hidden && beat && performance.now() - beat > 500) run(performance.now()); }, 50);
+  const fail = e => { $('clock').textContent = 'could not load: ' + (e && e.message ? e.message : e); };
+  window.addEventListener('error', e => { if (document.title !== 'ready') fail(e.error || e.message); });
+  MCG.load().then(() => {
+    if (q.get('auto') === '1') { MCG.state().auto = true; $('auto').checked = true; }
+    fit(); document.title = 'ready'; last = performance.now(); requestAnimationFrame(frame);
+  }).catch(fail);
+  window.MCGAME = { fit, repaint };
+})();
+</script>
+</body>
+</html>

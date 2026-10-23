@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CALI STERIUM - Desempleo Artificial / Artificial Unemployment</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* OPCIÓN B: índice editorial suizo. Papel claro, tinta negra, líneas finas, un acento azul eléctrico.
+     Las obras son una lista numerada; al pasar el mouse el video sigue al cursor. */
+  :root { --bg:#f1efe9; --ink:#111; --dim:#7b776f; --line:#111; --acc:#2a2aff; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--ink); }
+  body { font-family:"IBM Plex Mono", ui-monospace, monospace; font-size:12px; }
+  a { color:inherit; text-decoration:none; }
+  body.noscroll { overflow:hidden; }
+
+  header { display:flex; justify-content:space-between; padding:16px clamp(16px,2.5vw,32px); text-transform:uppercase; border-bottom:1px solid var(--line); }
+  .lang a { margin-left:16px; color:var(--dim); }
+  .lang a.on { color:var(--acc); }
+  .lang a.on::before { content:"● "; }
+  /* exhibition title big in a light weight; artist name small, in the font of the work titles */
+  .big { font-family:"Inter Tight", sans-serif; font-weight:400; letter-spacing:-.035em; line-height:.95; margin:0;
+    padding:3vw clamp(16px,2.5vw,32px) 0; font-size:clamp(26px, 6.3vw, 150px); text-transform:uppercase; }
+  .big span { color:var(--acc); }
+  .sub { padding:22px clamp(16px,2.5vw,32px) 60px; border-bottom:1px solid var(--line); }
+  .sub .name { font-family:"Inter Tight", sans-serif; font-weight:800; text-transform:uppercase; font-size:clamp(22px,2.6vw,44px); letter-spacing:-.03em; line-height:1; margin:0; }
+
+  #works { padding:0 clamp(16px,2.5vw,32px) 100px; }
+  .w { display:grid; grid-template-columns:60px minmax(0,1fr) 160px 220px 60px; align-items:center; gap:16px; padding:18px 0;
+    border-bottom:1px solid var(--line); text-transform:uppercase; }
+  .w .t { font-family:"Inter Tight", sans-serif; font-weight:800; font-size:clamp(22px,3.6vw,60px); letter-spacing:-.03em; line-height:1;
+    transition:color .15s; }
+  .w:hover .t { color:var(--acc); }
+  .w .k { color:var(--dim); }
+  .w .y { text-align:right; }
+  /* small preview, always visible, fixed in its row */
+  .w .thumb { position:relative; height:0; align-self:center; }
+  .w .thumb video { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    width:min(140px, calc(88px * var(--r))); aspect-ratio:var(--r); object-fit:cover; display:block;
+    z-index:5; outline:1px solid var(--line); }
+  @media (max-width:1100px) {
+    .w { grid-template-columns:48px minmax(0,1fr) 150px; }
+    .w .k { grid-column:2; grid-row:2; }
+    .w .y { display:none; }
+    .w .thumb { grid-column:3; grid-row:1 / 3; }
+  }
+  @media (max-width:700px) {
+    .w { grid-template-columns:32px minmax(0,1fr) 84px; gap:10px; }
+    .w .k { grid-column:2; grid-row:2; }
+    .w .y { display:none; }
+    .w .thumb { grid-column:3; grid-row:1 / 3; }
+    .w .thumb video { width:min(84px, calc(60px * var(--r))); }
+  }
+
+  @media (max-width:700px) { .big { font-size:11.5vw; } }
+
+  /* ---- popup: title + close, then the piece, the credits and the text, one after another ---- */
+  .modal { position:fixed; inset:0; z-index:40; display:none; place-items:center; background:rgba(241,239,233,.7); backdrop-filter:blur(8px) grayscale(1); }
+  .modal.open { display:grid; animation:up .35s cubic-bezier(.2,.7,.2,1); }
+  @keyframes up { from { opacity:0; transform:translateY(20px); } }
+  .panel { width:min(1700px, 90vw); height:86vh; overflow:auto; background:var(--bg); border:1px solid var(--line);
+    box-shadow:10px 10px 0 var(--acc); overscroll-behavior:contain; }
+  .head { position:sticky; top:0; z-index:3; display:flex; justify-content:space-between; align-items:center; gap:16px;
+    background:var(--bg); border-bottom:1px solid var(--line); padding:0 0 0 22px; }
+  .head h2 { font-family:"Inter Tight", sans-serif; font-weight:800; text-transform:uppercase; letter-spacing:-.035em;
+    font-size:clamp(26px,3.2vw,56px); line-height:1; margin:0; padding:14px 0 12px; color:var(--acc); }
+  .x { flex:none; align-self:stretch; background:var(--ink); color:var(--bg); border:0; width:clamp(48px,4.4vw,72px);
+    font:28px/1 "IBM Plex Mono", monospace; cursor:pointer; }
+  .x:hover { background:var(--acc); }
+  .stage { display:flex; justify-content:center; border-bottom:1px solid var(--line); }
+  .piece { overflow:hidden; }
+  .piece video, .piece iframe { display:block; width:100%; height:100%; border:0; object-fit:contain; }
+  .ced { border-collapse:collapse; width:100%; font-size:12px; }
+  .ced tr { border-bottom:1px solid var(--line); }
+  .ced tr:last-child { border-bottom:0; }
+  .ced th { text-align:left; vertical-align:top; font-weight:500; text-transform:uppercase; padding:9px 12px 9px 22px; width:8em; }
+  .ced td { padding:9px 22px 9px 0; line-height:1.45; }
+  .txt { padding:22px 22px 40px; }
+  .txt h3 { font-family:"IBM Plex Mono", monospace; font-weight:500; font-size:12px; text-transform:uppercase; margin:0 0 12px; }
+  .txt p { font-size:13px; line-height:1.75; margin:0; max-width:78ch; word-break:break-word; }
+  @media (max-width:900px) {
+    .panel { width:100vw; height:100dvh; box-shadow:none; border:0; }
+    .head { padding-left:16px; }
+    .ced th { padding-left:16px; width:6.5em; }
+    .ced td { padding-right:16px; }
+    .txt { padding:18px 16px 32px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <span>Cali Sterium — 2026</span>
+  <nav class="lang"><a href="#" data-lang="en">English</a><a href="#" data-lang="es">Spanish</a></nav>
+</header>
+<h1 class="big">Desempleo Artificial <span>/</span><br>Artificial Unemployment</h1>
+<div class="sub"><p class="name">Cali Sterium</p></div>
+<main id="works"></main>
+<script src="data.js"></script>
+<script src="ui.js"></script>
+</body>
+</html>
