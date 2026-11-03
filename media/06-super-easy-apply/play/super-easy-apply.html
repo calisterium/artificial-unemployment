@@ -17,9 +17,19 @@
   #bar label { white-space:nowrap; }
   #clock { font:13px monospace; min-width:260px; color:#fff; }
   #bar.hidden { display:none; }
+  /* loading screen: the first frame of the piece (the live page starts on the same picture), until the first live frame */
+  #loading { position:fixed; inset:0; margin:auto; width:min(100vw, 100vh); height:min(100vw, 100vh); z-index:4;
+    background:#05000f url(loading.jpg) center / cover no-repeat; transition:opacity .5s; pointer-events:none; }
+  #loading span { position:absolute; left:0; right:0; bottom:7%; text-align:center; color:#fff;
+    font:calc(min(100vw, 100vh) * .045)/1 VT323, monospace; letter-spacing:.06em;
+    text-shadow:-2px 0 rgba(255,60,200,.8), 2px 0 rgba(60,230,255,.8), 0 0 14px rgba(255,120,230,.7);
+    animation:blink 1s steps(2, start) infinite; }
+  @keyframes blink { to { visibility:hidden; } }
+  #loading.gone { opacity:0; }
 </style>
-<script src="vhs.js"></script>
-<script src="models/statues.js"></script>
+<!-- defer: the loading picture paints at once; these still run before the module below (document order) -->
+<script defer src="vhs.js"></script>
+<script defer src="models/hand_mesh.js"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
@@ -28,6 +38,7 @@
 </script>
 </head>
 <body>
+<div id="loading"><span>LOADING...</span></div>
 <div id="stage"></div>
 <div id="bar">
   <button id="play">❚❚ pause</button>
@@ -39,8 +50,6 @@
 </div>
 <script type="module">
 import * as THREE from 'three';
-import { MarchingCubes } from 'three/addons/objects/MarchingCubes.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const S = 1440;
 const q = new URLSearchParams(location.search);
@@ -48,6 +57,27 @@ const RENDER = q.has('render');                       // ?render=1&t=<s>: one se
 const CLEAN = !q.has('bar');                          // the exhibited page: no control bar (?bar shows it)
 const T0 = 0;
 if (CLEAN) document.getElementById('bar').remove();
+const loadingEl = document.getElementById('loading');
+if (RENDER) loadingEl.remove();
+else await new Promise(r => requestAnimationFrame(() => setTimeout(r)));   // let the loading picture paint before the heavy setup
+
+// baked meshes (models/hand_mesh.js, models/statues_q.js): 16-bit positions + indices as base64 varints, made by
+// works/06-super-easy-apply/bake/encode.py; normals are recomputed here
+function unpackMesh(m) {
+  const str = atob(m.b64), b = new Uint8Array(str.length);
+  for (let i = 0; i < str.length; i++) b[i] = str.charCodeAt(i);
+  let p = 0;
+  const rd = () => { let u = 0, k = 1, c; do { c = b[p++]; u += (c & 127) * k; k *= 128; } while (c & 128); return u % 2 ? -(u + 1) / 2 : u / 2; };
+  const idx = new Uint32Array(m.i); let hw = 0;
+  for (let i = 0; i < m.i; i++) { const d = rd(); idx[i] = hw - d; if (d === 0) hw++; }
+  const pos = new Float32Array(m.v * 3), q = [0, 0, 0], k = [0, 1, 2].map(c => (m.max[c] - m.min[c]) / 65535);
+  for (let i = 0; i < m.v; i++) for (let c = 0; c < 3; c++) { q[c] += rd(); pos[3 * i + c] = m.min[c] + q[c] * k[c]; }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setIndex(new THREE.BufferAttribute(idx, 1));
+  g.computeVertexNormals();
+  return g;
+}
+const loadScript = src => new Promise((ok, fail) => { const e = document.createElement('script'); e.src = src; e.onload = ok; e.onerror = fail; document.head.append(e); });
 
 const stage = document.getElementById('stage');
 const renderer = new THREE.WebGLRenderer({ antialias:true, preserveDrawingBuffer:true });
@@ -288,16 +318,8 @@ const HAND = [
 ];
 const INDEX_TIP = INDEX.tip;                                     // hotspot (local coords)
 
-const tmpV = new THREE.Vector3(), ab = new THREE.Vector3();
-function sdCapsule(p, c) {
-  ab.subVectors(c.b, c.a);
-  const l2 = ab.lengthSq();
-  const t = l2 === 0 ? 0 : THREE.MathUtils.clamp(tmpV.subVectors(p, c.a).dot(ab) / l2, 0, 1);
-  tmpV.copy(c.a).addScaledVector(ab, t);
-  return p.distanceTo(tmpV) - (c.ra + (c.rb - c.ra) * t);
-}
-function smin(a, b, k) { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; }
-function sdHand(p) { let d = 1e9; for (const c of HAND) d = smin(d, sdCapsule(p, c), c.k); return d; }
+// (the capsules are smooth-unioned into an SDF and polygonised once, MarchingCubes RES 240, by
+//  works/06-super-easy-apply/bake/bake_hand.html: the result is models/hand_mesh.js)
 
 // polished metal with a faint brushed grain (normal + roughness wobble, running along the arm)
 function brushed(mat, amount) {
@@ -341,23 +363,8 @@ function nail(f, w, l) {
 // box in hand coords
 const BOX = { c:V(0.04, 0.40, -0.10), h:V(0.78, 1.55, 0.72) };
 function makeHand() {
-  const RES = 240;
-  const mc = new MarchingCubes(RES, metal, false, false, 900000);
-  mc.isolation = 0; mc.reset();
-  const p = new THREE.Vector3(), cell = V(2 * BOX.h.x / RES, 2 * BOX.h.y / RES, 2 * BOX.h.z / RES);
-  const B = 6, skip = cell.length() * B * 1.2;          // coarse pass: skip empty blocks
-  for (let bz = 0; bz < RES; bz += B) for (let by = 0; by < RES; by += B) for (let bx = 0; bx < RES; bx += B) {
-    p.set(BOX.c.x - BOX.h.x + (bx + B / 2) * cell.x, BOX.c.y - BOX.h.y + (by + B / 2) * cell.y, BOX.c.z - BOX.h.z + (bz + B / 2) * cell.z);
-    const far = sdHand(p) > skip;
-    for (let z = bz; z < Math.min(bz + B, RES); z++) for (let y = by; y < Math.min(by + B, RES); y++) for (let x = bx; x < Math.min(bx + B, RES); x++) {
-      const i = x + y * RES + z * RES * RES;
-      if (far) { mc.field[i] = -1; continue; }
-      p.set(BOX.c.x - BOX.h.x + x * cell.x, BOX.c.y - BOX.h.y + y * cell.y, BOX.c.z - BOX.h.z + z * cell.z);
-      mc.field[i] = -sdHand(p) * 50;
-    }
-  }
-  mc.update();
-  mc.scale.copy(BOX.h);               // MarchingCubes spans [-1,1]^3 locally: map it back onto the box
+  const mc = new THREE.Mesh(unpackMesh(window.HAND_MESH), metal);
+  mc.scale.copy(BOX.h);               // the mesh spans [-1,1]^3 locally (as MarchingCubes did): map it back onto the box
   mc.position.copy(BOX.c);
   const g = new THREE.Group(); g.add(mc);
   // forearm beyond the box: a plain cone along the same axis, tucked inside the SDF surface
@@ -488,23 +495,25 @@ const colB = column(3.6); colB.position.set(-1.2, 0, -5.0); scene.add(colB);
 const colB2 = column(3.6); colB2.position.set(1.6, 0, -5.4); scene.add(colB2);
 
 // ---------- statues ----------
-const loader = new GLTFLoader();
-const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0)).buffer;
-async function statue(name, h, x, z, rotY) {
-  const gltf = await loader.parseAsync(b64(window.STATUES[name]), '');
-  gltf.scene.traverse(o => { if (o.isMesh) { o.material = marble; } });
-  gltf.scene.scale.setScalar(h); gltf.scene.position.set(x, 0, z); gltf.scene.rotation.y = rotY;
-  scene.add(gltf.scene); return gltf.scene;
+function statue(name, h, x, z, rotY) {
+  const o = new THREE.Mesh(unpackMesh(window.STATUES_Q[name]), marble);
+  o.scale.setScalar(h); o.position.set(x, 0, z); o.rotation.y = rotY;
+  scene.add(o); return o;
 }
 const plinth = (x, z, w, h) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), marble); m.position.set(x, h / 2, z); scene.add(m); return h; };
 const pH = plinth(-0.35, -2.6, 0.7, 0.55);
-// each statue spins around its own axis, at its own speed
-const spinners = await Promise.all([
-  statue('caryatid', 2.3, -1.3, 0.9, -1.15).then(o => ({ o, r0:-1.15, w:0.55 })),
-  statue('toga', 2.0, 1.35, 0.2, -0.45).then(o => ({ o, r0:-0.45, w:-0.45 })),
-  statue('athena', 2.05, 0.25, -1.6, -0.1).then(o => ({ o, r0:-0.1, w:0.35 })),
-  statue('roman_bronze', 1.2, -0.35, -2.6, 0.3).then(o => { o.position.y = pH; return { o, r0:0.3, w:-0.8 }; }),
-]);
+// each statue spins around its own axis, at its own speed. They are only seen after the click, so models/statues_q.js
+// is loaded after the first frame (addStatues), one statue per task so the hand never stalls
+const spinners = [];
+async function addStatues() {
+  if (!window.STATUES_Q) await loadScript('models/statues_q.js');
+  const next = () => new Promise(r => setTimeout(r));
+  spinners.push({ o:statue('caryatid', 2.3, -1.3, 0.9, -1.15), r0:-1.15, w:0.55 }); await next();
+  spinners.push({ o:statue('toga', 2.0, 1.35, 0.2, -0.45), r0:-0.45, w:-0.45 }); await next();
+  spinners.push({ o:statue('athena', 2.05, 0.25, -1.6, -0.1), r0:-0.1, w:0.35 }); await next();
+  const rb = statue('roman_bronze', 1.2, -0.35, -2.6, 0.3); rb.position.y = pH;
+  spinners.push({ o:rb, r0:0.3, w:-0.8 });
+}
 
 // ---------- VHS finish (scanlines, grain, slight colour split) as a post pass ----------
 const rt = new THREE.WebGLRenderTarget(S, S, { samples:4 });
@@ -528,7 +537,7 @@ const postScene = new THREE.Scene(); postScene.add(post);
 const postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
 
-return { scene, camera, gridU, spinners, rt, post, postScene, postCam };
+return { scene, camera, gridU, spinners, addStatues, rt, post, postScene, postCam };
 })();
 
 // =====================================================================================
@@ -778,6 +787,7 @@ await document.fonts.load('68px VT323'); await document.fonts.ready;
 BEACH.label.needsUpdate = true;
 
 if (RENDER) {
+  await REVIEW.addStatues();
   // video: corner -> click -> the whole sequence -> the beach again with the hand back in the corner
   const L = Math.ceil((APPROACH + M.end) * 30) / 30, T = parseFloat(q.get('t') ?? '0') % L;   // a whole number of frames
   let hp;
@@ -802,6 +812,15 @@ if (RENDER) {
     }
     requestAnimationFrame(frame);
   })();
+  // the first live frame is up: drop the loading picture, then fetch the statues and get the review screen's shaders
+  // ready in the background, so the click does not stall either
+  requestAnimationFrame(() => {
+    loadingEl.classList.add('gone'); setTimeout(() => loadingEl.remove(), 600);
+    REVIEW.addStatues().then(() => Promise.all([
+      renderer.compileAsync(REVIEW.scene, REVIEW.camera), renderer.compileAsync(REVIEW.postScene, REVIEW.postCam),
+      renderer.compileAsync(ovScene, ortho), renderer.compileAsync(reviewHud.sc, ortho),
+    ])).catch(e => console.warn('review preload:', e));
+  });
 }
 </script>
 </body>

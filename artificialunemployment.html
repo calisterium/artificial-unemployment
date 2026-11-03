@@ -1,0 +1,1192 @@
+<!doctype html>
+<!-- built by body-entrance/publish.py from body-entrance/live.html: edit THAT file, then rerun it -->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CALI STERIUM - Desempleo Artificial / Artificial Unemployment</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@300&display=swap" rel="stylesheet">
+<style>
+  /* Three typefaces in the whole page: IBM VGA 8x16 (machine: name, numbers, AI voice), IBM Plex Mono (work titles and
+     phrases, the popup), IBM Plex Sans Condensed (the question). Inter Tight was dropped with the old light popup. */
+  @font-face { font-family:"VGA"; src:url("fonts/WebPlus_IBM_VGA_8x16.woff") format("woff"); }
+  html, body { margin:0; height:100%; background:#000; overflow:hidden; }
+  canvas { display:block; position:absolute; left:0; top:0; }
+  .vga { font-family:"VGA", monospace; -webkit-font-smoothing:none; }
+
+  /* header: name, then the exhibition title on the line below */
+  #head { position:absolute; left:28px; top:26px; font-size:16px; line-height:18px; white-space:nowrap; }
+  #head b { display:block; font-weight:normal; color:#f0f0f0; }
+  #head b { cursor:pointer; } #head b:hover, body.ab #head b { color:#5b8cff; }   /* click = About the Author */
+  /* About the Author (3 Nov 2026): a popup in the style of the work popup, opened by clicking CALI STERIUM; text in T.about */
+  .about { position:fixed; inset:0; z-index:45; display:none; place-items:center; background:rgba(0,0,0,.7); }
+  .about.open { display:grid; animation:up .35s cubic-bezier(.2,.7,.2,1); }
+  .about .ap { position:relative; width:min(720px, 92vw); max-height:88dvh; overflow:auto; background:rgba(5,5,5,.9); border:1px solid #2e2e2e;
+    padding:30px 56px 36px 34px; color:#c9c9c9; font-family:"IBM Plex Mono", monospace; font-size:13.5px; line-height:1.65; overscroll-behavior:contain; }
+  .about .pn { display:block; margin:0 0 6px; }
+  .about h2 { font:500 22px/1.3 "IBM Plex Mono", monospace; letter-spacing:.05em; text-transform:uppercase; color:#ececec; margin:0 0 18px; }
+  .about p { margin:0 0 14px; } .about p:last-child { margin:0; }
+  .about a { color:#5b8cff; text-decoration:none; } .about a:hover { color:#9db8ff; text-decoration:underline; }
+  body.mob .about .ap { box-sizing:border-box; width:100vw; height:100dvh; max-height:none; border:0; background:#050505; padding:64px 20px 40px 16px; }
+  body.mob .about h2, body.mob .about .ab { max-width:720px; margin-left:auto; margin-right:auto; }   /* tablets: no 100-character lines */
+  body.mob .about .ap { font-size:clamp(13.5px, 1.4vw, 22px); }
+  #head .s { display:block; color:#8a8a8a; text-transform:uppercase; }
+  /* the question, in a condensed face, stretched to the width between the two columns of titles (set in layout()) */
+  body.q2 #q { white-space:pre; line-height:1.15; }
+  #q { position:absolute; margin:0; font-family:"IBM Plex Sans Condensed", sans-serif; font-weight:300; color:#c4c4c4;
+       white-space:nowrap; text-align:center; line-height:1.1; letter-spacing:0; }
+  .lang { position:absolute; font-family:"IBM Plex Mono", monospace; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:#555; white-space:nowrap; }
+  .lang a { margin:0 5px; color:#7a7a7a; text-decoration:none; }
+  .lang a:first-child { margin-left:0; } .lang a:last-child { margin-right:0; }
+  .lang a.on { color:#fff; text-decoration:underline; }
+  /* the three layout options: where the language switch sits (and the question in B) */
+  body.lyA .lang { right:28px; top:28px; }
+  body.lyB .lang { right:28px; bottom:22px; }
+  body.lyC .lang { left:28px; top:68px; }
+  /* sound switch of Untitled (3 Nov 2026): same style as the language switch, under it, only while the silhouette is lit */
+  .snd { position:absolute; right:28px; display:none; font-family:"IBM Plex Mono", monospace; font-size:11px; letter-spacing:.08em; text-transform:uppercase; white-space:nowrap; z-index:6; }
+  .snd a { color:#3dbfa8; text-decoration:none; } .snd a:hover { color:#7fdccb; }
+  body.nl.snd-on .snd { display:block; }
+  body.mob .snd { right:16px; top:40px; }
+
+  /* titles of the works around the body (terminal index: VGA numbers + uppercase IBM Plex Mono) */
+  #labels { position:absolute; inset:0; pointer-events:none; }
+  svg { position:absolute; left:0; top:0; width:100%; height:100%; overflow:visible; }
+  svg g { stroke:rgba(255,255,255,.25); fill:rgba(255,255,255,.4); transition:stroke .2s, fill .2s; }
+  svg g.on { stroke:#5b8cff; fill:#5b8cff; }
+  svg text { display:none; }
+  .lab { position:absolute; max-width:240px; font-family:"IBM Plex Mono", monospace; pointer-events:auto; cursor:pointer; }
+  .lab.soon { cursor:default; }
+  .lab .n { font-family:"VGA", monospace; font-size:clamp(16px, 1vw, 22px); color:#8a8a8a; -webkit-font-smoothing:none; transition:color .2s; }
+  .as-is { display:block; text-transform:none; }
+  .lab .t { font-size:clamp(14px, .95vw, 20px); font-weight:500; color:#e6e6e6; letter-spacing:.04em; text-transform:uppercase; line-height:1.25; transition:color .2s; }
+  .lab .d { display:none; font-size:10px; color:#8f8f8f; letter-spacing:.05em; line-height:1.45; margin-top:3px; transition:color .2s; }
+  .lab .e { font-family:"VGA", monospace; font-size:16px; color:#e6e6e6; margin-top:3px; -webkit-font-smoothing:none; transition:color .2s; }
+  .lab.on .n, .lab.on .t, .lab.on .e { color:#5b8cff; }
+  .lab.on .d { color:#cfd9ff; }
+  /* A New Land (27 Oct): green instead of blue; the face, hands and feet light up green with it */
+  svg g.free.on { stroke:#3dbfa8; fill:#3dbfa8; }
+  .lab.free.on .n, .lab.free.on .t { color:#3dbfa8; }
+  .lab.free.on .e.btn, body.nl .lab.free .e.btn { color:#0d0d0d; background:#3dbfa8; border-color:#7fdccb; }   /* Untitled's button: turquoise, stays lit while on */
+  body.nl .lab.free .n, body.nl .lab.free .t { color:#3dbfa8; }
+  /* while A New Land is hovered (body.nl): the other titles go dark gray, the AI voice and the scan line disappear */
+  #log, #scan { transition:opacity .3s; }
+  body.nl #log, body.nl #scan { opacity:0; }
+  #q { transition:color .3s; }
+  body.nl #q { color:#3a3a3a; }                            /* the question goes dark gray too */
+  body.nl .lab:not(.free) .n, body.nl .lab:not(.free) .t, body.nl .lab:not(.free) .e { color:#3a3a3a; }
+  body.nl .lab:not(.free) .e.btn { color:#3a3a3a; background:#1e1e1e; border-color:#2c2c2c; }
+  svg g.free { transition:opacity .3s; }
+  body.nl svg g.free { opacity:0; }                         /* A New Land's own line to the foot goes away on hover */
+  body.nl svg g:not(.free) { stroke:rgba(255,255,255,.07); fill:rgba(255,255,255,.1); }
+  .lab .e.btn { transition:color .2s, background .2s, border-color .2s; }
+  .lab .e.btn { display:inline-block; margin-top:7px; padding:3px 9px 2px; font:500 clamp(10px, .7vw, 14px)/1.2 "IBM Plex Mono", monospace; letter-spacing:.1em;
+    text-transform:uppercase; color:#111; background:#b4b4b4; border:2px outset #dcdcdc; }
+  .lab.on .e.btn { color:#fff; background:#5b8cff; border-color:#9db8ff; }
+  .lab .e.btn:active { border-style:inset; }
+  body.scanning .lab .n { color:#c8a951; }
+
+  /* the AI voice, under the feet */
+  #log { position:absolute; font-family:"VGA", monospace; font-size:15px; line-height:17px; color:#8a8a8a; white-space:pre-wrap;
+         text-align:center; pointer-events:none; -webkit-font-smoothing:none; transition:color .25s, text-shadow .25s; }
+  #log div { opacity:var(--o, 1); }
+  #log.green { color:#c8a951; text-shadow:0 0 6px rgba(200,169,81,.7); }
+  #log .cur::after { content:"_"; animation:blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity:0; } }
+
+  /* the scan line */
+  #scan { position:absolute; left:0; right:0; height:0; pointer-events:none; display:none; }
+  #scan.on { display:block; }
+  #scan .ln { position:absolute; left:0; right:0; top:0; border-top:1px solid rgba(200,169,81,.55); box-shadow:0 0 6px rgba(200,169,81,.5); }
+  #scan .ro { position:absolute; top:-9px; font-family:"VGA", monospace; font-size:16px; color:#c8a951; text-shadow:0 0 6px rgba(200,169,81,.6); white-space:pre; -webkit-font-smoothing:none; }
+
+  /* phones and portrait tablets: the page scrolls; header, question, the candidate, the AI voice, then the list of works */
+  body.print > :not(canvas:first-of-type) { display:none !important; }
+  body.mob { overflow-y:auto; height:auto; }
+  html.mob { overflow-y:auto; height:auto; scrollbar-gutter:stable; }
+  body.mob #head { left:16px; top:16px; font-size:16px; }
+  body.mob .lang { left:auto; right:16px; top:10px; bottom:auto; font-size:clamp(13px, 1.4vw, 20px); }
+  body.mob .lang a { display:inline-block; padding:8px 6px; }                 /* touch targets */
+  body.mob #head { font-size:clamp(16px, 1.8vw, 28px); line-height:1.15; }
+  body.mob #labels { bottom:auto; }
+  body.mob #list { position:absolute; left:16px; right:16px; display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:22px 20px; }
+  body.mob .lab { position:static; max-width:none; }
+  body.mob svg { display:none; }
+  body.mob #list { display:block; text-align:center; min-height:120px; }
+  body.mob .lab { display:none; }
+  body.mob .lab.on { display:block; }
+
+  .apply { display:none; }
+  body.mob .apply { display:block; position:absolute; transform:translate(-50%, -50%); z-index:5; padding:9px 14px 8px; min-height:36px;
+    font:500 clamp(12px, 1.6vw, 22px)/1.2 "IBM Plex Mono", monospace; letter-spacing:.1em; text-transform:uppercase; color:#111;
+    background:#b4b4b4; border:2px outset #dcdcdc; border-radius:0; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  body.mob .apply:active { border-style:inset; }
+  body.mob .apply.on { background:#5b8cff; border-color:#9db8ff; color:#fff; }
+  body.mob svg polyline { display:none; }
+  body.mob svg text { display:block; font:11px "IBM Plex Mono", monospace; text-anchor:middle; dominant-baseline:central; stroke:none; fill:#d0d0d0; }
+  body.mob svg circle { fill:#000; stroke:#6a6a6a; stroke-width:1; }
+  body.mob svg g.on circle { fill:#5b8cff; stroke:#5b8cff; }
+  body.mob svg g.on text { fill:#fff; }
+  body.mob #log { font-size:clamp(13px, 1.5vw, 24px); line-height:1.15; }
+  body.mob .lab .t { font-size:clamp(14px, 1.5vw, 22px); } body.mob .lab .n { font-size:clamp(16px, 1.6vw, 24px); }
+  body.mob .lab .e.btn { font-size:clamp(11px, 1.3vw, 18px); padding:8px 14px 7px; }
+  body.mob.pop-c .ced { font-size:clamp(13.5px, 1.4vw, 22px); } body.mob.pop-c .ced th { font-size:clamp(11.5px, 1.2vw, 18px); }
+  body.mob.pop-c .head2 h2 { font-size:clamp(22px, 2.2vw, 34px); }
+  /* h6: on phones a second tap opens the work; say so under the selected title */
+  .lab .again { display:none; } body.mob .lab.on .again { display:block; margin-top:6px; font-size:clamp(11px, 1.2vw, 16px); color:#8a8a8a; letter-spacing:.06em; text-transform:uppercase; }
+  /* h7: while Untitled is lit on phones the other APPLY buttons go dark like the titles on desktop */
+  body.nl.mob .apply:not(.on) { background:#1e1e1e; color:#3a3a3a; border-color:#2c2c2c; }
+  body.mob #scan .ro { display:none; }
+
+  /* ---- popup, as in entrega-intermedia/sitio: title + close, then the piece and the credits ---- */
+  :root { --bg:#f1efe9; --ink:#111; --line:#111; --acc:#2a2aff; }
+  .modal { position:fixed; inset:0; z-index:40; display:none; place-items:center; background:rgba(0,0,0,.6); backdrop-filter:blur(8px) grayscale(1); }
+  .modal.open { display:grid; animation:up .35s cubic-bezier(.2,.7,.2,1); }
+  @keyframes up { from { opacity:0; transform:translateY(20px); } }
+  .panel { width:min(1700px, 90vw); height:86vh; overflow:auto; background:var(--bg); color:var(--ink); border:1px solid var(--line);
+    box-shadow:10px 10px 0 var(--acc); overscroll-behavior:contain; font-family:"IBM Plex Mono", ui-monospace, monospace; font-size:12px; }
+  .head2 { position:sticky; top:0; z-index:3; display:flex; justify-content:space-between; align-items:center; gap:16px;
+    background:var(--bg); border-bottom:1px solid var(--line); padding:0 0 0 22px; }
+  .head2 h2 { font-family:"IBM Plex Mono", monospace; font-weight:500; text-transform:uppercase; letter-spacing:-.035em;
+    font-size:clamp(26px,3.2vw,56px); line-height:1; margin:0; padding:14px 0 12px; color:var(--acc); }
+  .x { flex:none; align-self:stretch; background:var(--ink); color:var(--bg); border:0; width:clamp(48px,4.4vw,72px);
+    font:28px/1 "IBM Plex Mono", monospace; cursor:pointer; }
+  .x:hover { background:var(--acc); }
+  .stage { display:flex; justify-content:center; border-bottom:1px solid var(--line); }
+  .piece { overflow:hidden; position:relative; }
+  .scroll-hint { position:absolute; right:26px; top:10px; display:flex; align-items:center; gap:10px; pointer-events:none;
+    font:16px/1.2 "VGA", monospace; -webkit-font-smoothing:none; color:#c8ffd8; background:rgba(0,0,0,.72);
+    border:1px solid rgba(160,255,190,.55); padding:8px 10px; box-shadow:0 0 14px rgba(120,255,160,.25);
+    transition:opacity .6s; animation:hintIn .5s ease-out .6s both; }
+  .scroll-hint b { font-weight:normal; font-size:22px; animation:nudge 1s ease-in-out infinite; }
+  .scroll-hint.gone { opacity:0; }
+  @keyframes nudge { 50% { transform:translateX(6px); } }
+  .scroll-hint b.dn { animation-name:nudgeDn; } @keyframes nudgeDn { 50% { transform:translateY(6px); } }
+  @keyframes hintIn { from { opacity:0; transform:translateX(-12px); } }
+  .piece video, .piece iframe { display:block; width:100%; height:100%; border:0; object-fit:contain; }
+  .ced { border-collapse:collapse; width:100%; font-size:12px; }
+  .ced tr { border-bottom:1px solid var(--line); }
+  .ced tr:last-child { border-bottom:0; }
+  .ced th { text-align:left; vertical-align:top; font-weight:500; text-transform:uppercase; padding:9px 12px 9px 22px; width:8em; }
+  .ced td { padding:9px 22px 9px 0; line-height:1.45; }
+
+  /* ---- popup, three dark proposals (?pop=a|b|c), same typefaces as the home page; the page stays visible behind ---- */
+  body[class*="pop-"] .modal { background:rgba(0,0,0,.62); backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); }
+  body[class*="pop-"] .pn { font-family:"VGA", monospace; font-size:16px; color:#8a8a8a; -webkit-font-smoothing:none; margin-right:12px; }
+  body[class*="pop-"] .x { background:transparent; color:#bdbdbd; font:16px/1 "VGA", monospace; -webkit-font-smoothing:none; width:auto; padding:0 18px; }
+  body[class*="pop-"] .x:hover { background:transparent; color:#5b8cff; }
+  body[class*="pop-"] .ced { font-family:"IBM Plex Mono", monospace; font-size:11px; color:#a8a8a8; }
+  body[class*="pop-"] .ced tr { border-bottom:1px solid #222; }
+  body[class*="pop-"] .ced th { color:#6e6e6e; font-weight:400; letter-spacing:.08em; font-size:10px; }
+  /* A: a terminal window, translucent black, thin gray frame */
+  body.pop-a .panel { background:rgba(6,6,6,.55); color:#ddd; border:1px solid #3a3a3a; box-shadow:none; width:min(1500px, 88vw); }
+  body.pop-a .head2 { background:rgba(6,6,6,.8); border-bottom:1px solid #2a2a2a; padding-left:18px; }
+  body.pop-a .head2 h2 { font:500 15px "IBM Plex Mono", monospace; letter-spacing:.06em; color:#e6e6e6; padding:15px 0 13px; }
+  body.pop-a .x { border-left:1px solid #2a2a2a; }
+  body.pop-a .stage { border-bottom:1px solid #2a2a2a; }
+  /* B: no frame at all, the piece floats over the page; title in the condensed face of the question */
+  body.pop-b .modal { background:rgba(0,0,0,.78); }
+  body.pop-b .panel { background:transparent; border:0; box-shadow:none; width:100vw; height:100vh; }
+  body.pop-b .head2 { position:static; background:transparent; border:0; justify-content:center; padding:30px 0 16px; }
+  body.pop-b .head2 h2 { font:300 40px/1 "IBM Plex Sans Condensed", sans-serif; letter-spacing:0; text-transform:none; color:#ececec; padding:0; }
+  body.pop-b .pn { display:block; text-align:center; margin:0 0 10px; }
+  body.pop-b .x { position:fixed; top:22px; right:12px; }
+  body.pop-b .stage { background:transparent !important; border:0; }
+  body.pop-b .piece { outline:1px solid #333; box-shadow:0 24px 80px rgba(0,0,0,.7); }
+  body.pop-b .info { max-width:760px; margin:18px auto 60px; }
+  /* C: the piece large on the left, a caption column on the right like the titles of the home page */
+  body.pop-c .panel { position:relative; background:rgba(5,5,5,.5); border:1px solid #2e2e2e; box-shadow:none; width:min(1600px, 92vw);
+    display:grid; grid-template-columns:minmax(0,1fr) clamp(250px, 30vw, 380px); grid-template-rows:auto 1fr; overflow:hidden; }
+  body.pop-c .head2 { grid-column:2; grid-row:1; position:static; display:block; background:transparent; border:0; border-left:1px solid #262626; padding:26px 22px 14px; }
+  body.pop-c .head2 h2 { font:500 22px/1.3 "IBM Plex Mono", monospace; letter-spacing:.05em; color:#ececec; padding:0; }
+  body.pop-c .pn { display:block; margin:0 0 6px; }
+  body.pop-c .x { position:absolute; top:10px; right:4px; padding:8px 14px; }
+  body.pop-c .stage { grid-column:1; grid-row:1 / 3; border:0; align-items:center; }
+  body.pop-c .head2, body.pop-c .info { background:rgba(5,5,5,.75) !important; }
+  body.pop-c .info { grid-column:2; grid-row:2; border-left:1px solid #262626; overflow:auto; padding:0 0 20px; }
+  body.pop-c .ced { font-size:13.5px; line-height:1.55; }
+  body.pop-c .ced th { display:block; padding:14px 22px 3px; width:auto; font-size:11.5px; }
+  body.pop-c .ced td { display:block; padding:0 22px 14px; line-height:1.55; }
+  /* phones and tablets (the stacked home page): the piece first, then the caption column under it */
+  /* phones/tablets: an opaque panel and no backdrop blur (Chrome drew the page's buttons and titles through the blurred panel, 3 Nov 2026) */
+  body.mob .modal { backdrop-filter:none !important; -webkit-backdrop-filter:none !important; background:rgba(0,0,0,.6); }   /* !important: the pop- rule below is later and as specific */
+  body.mob.pop-c .panel { display:flex; flex-direction:column; overflow:auto; width:100vw; height:100dvh; border:0; background:#050505; }
+  body.mob.pop-c .stage { order:1; flex:none; padding-top:44px; }   /* room for the fixed [ X ] */
+  body.mob.pop-c .head2 { order:2; position:static; display:block; border-left:0; border-top:1px solid #262626; padding:18px 16px 8px; }
+  body.mob.pop-c .info { order:3; flex:none; border-left:0; overflow:visible; }
+  body.mob.pop-c .ced th { padding-left:16px; } body.mob.pop-c .ced td { padding-left:16px; padding-right:16px; }
+  body.mob.pop-c .x { position:fixed; top:8px; right:8px; z-index:50; padding:8px 10px; background:rgba(0,0,0,.65); }
+  @media (max-width:900px) {
+    body.pop-c .panel { display:block; overflow:auto; border:0; }
+    body.pop-c .head2 { position:sticky; top:0; z-index:3; border-left:0; border-bottom:1px solid #262626; padding:16px 16px 12px; }
+    body.pop-c .info { border-left:0; }
+    .panel { width:100vw; height:100dvh; box-shadow:none; border:0; }
+    .head2 { padding-left:16px; }
+    .ced th { padding-left:16px; width:6.5em; }
+    .ced td { padding-right:16px; }
+  }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="head" class="vga"><b>CALI STERIUM</b><span class="s" data-t="series"></span></div>
+<p id="q" data-t="phrase"></p>
+<nav class="lang"><a href="#" data-lang="en">English</a>|<a href="#" data-lang="es">Spanish</a></nav>
+<nav class="snd"><a href="#" id="sndBtn"></a></nav>
+<div class="about"><div class="ap"><button class="x" aria-label="close">[ X ]</button><span class="pn vga">[ ? ]</span><h2></h2><div class="ab"></div></div></div>
+<div id="scan"><div class="ln"></div><div class="ro"></div></div>
+<div id="labels"><svg id="lines"></svg><div id="list"></div></div>
+<div id="log"></div>
+<!-- works, phrases and credits come from the intermediate delivery site -->
+<script src="data.js"></script>
+<script src="body_data.js"></script>
+<script src="cv_text.js"></script>
+<script src="ai_voice.js"></script>
+<script type="module">
+import * as THREE from 'three';
+
+const Q = new URLSearchParams(location.search);
+const LIMBS = Q.get('limbs') || 'along';                    // 'along' = pictures along the limb, 'up' = upright
+const SITE = '';                                                         // data.js paths are relative to that page
+const REC = Q.has('rec');                                    // stills: drawn once by tools/record_cdp.py
+// ?rec&print&pw=&ph=&tile= : the candidate alone for a large print, every part in colour, no letters, drawn in tiles
+const PRINT = Q.has('print');
+const CVMODE = PRINT ? 0 : { '0':0, a:1, b:2, c:3 }[Q.get('cv') || 'b'];  // CV text over the body: a faint, b dense, c wrapped
+const SCANMODE = PRINT ? 0 : +(Q.get('scan') ?? 1);          // 0 off, 1 line across the page, 2 only on the body
+const SIDEV = 'c', LAY = 0;                                 // side titles: terminal index (chosen)
+const LY = (Q.get('ly') || 'A').toUpperCase();              // layout option: A language top right, B question over the head + language bottom right, C language under the title
+const LOGPOS = Q.get('log') === '0' ? '0' : 'feet';         // the AI voice sits under the feet
+
+// The 9 parts and their works (ids of data.js; work 9 not made yet)
+// New organisation (Carlos, 26 Oct 2026): new titles and numbers, and which part of the body each work sits on.
+// Right / left = the candidate's own right and left (his right arm is on the viewer's left). No question marks (27 Oct).
+// parts: 0 head, 1 chest, 2 belly, 3 right arm, 4 left arm, 5 right thigh, 6 left thigh, 7 right shin, 8 left shin
+// 28 Oct: the face carries no work; 09 (now A New Land / Una tierra nueva) = slot 0: face, hands and feet light up green on hover,
+// its line points at the LEFT FOOT (27 Oct), not clickable yet (coming soon...)
+const PART_WORK = [null, '02', '11', '01', '07', '03', '12', '06', 'cc'];
+const FREE = 0;                                               // slot of A New Land (was Free Ground): face + hands + feet
+const TITLE = {
+  '02': { en:'Brute Force', es:'Fuerza bruta' },
+  '01': { en:'Shrinking', es:'Encogerse' },
+  '03': { en:'Growing', es:'Crecer' },
+  '06': { en:'Shortcuts', es:'Atajos' },
+  '07': { en:'Through Other Eyes (MATCH CATCH)', es:'Con otros ojos (MATCH CATCH)' },
+  '11': { en:'Dancing to the Beat (A-play-I)', es:'Bailar al ritmo (A-play-I)' },
+  '12': { en:'Holding the Gaze', es:'Sostener la mirada' },
+  'cc': { en:'Building a New Imaginary', es:'Construir un nuevo imaginario' },
+  '09': { en:'Untitled', es:'Sin título' },   // was Free Ground / Terreno libre, then A New Land / Una tierra nueva (27 Oct)
+};
+const NINE = { id:null, text:{ en:'', es:'' } };
+const PARTS = PART_WORK.map(id => id ? { ...WORKS.find(w => w.id === id), titles:TITLE[id] } : { ...NINE, titles:TITLE['09'] });
+// FORMAT row of the caption (replaces the TITLE row, which repeated the heading); a first proposal, for Carlos to review
+const FORMAT_LABEL = { en:'format', es:'formato' };
+const FORMAT = {
+  '02': { en:'Minigame', es:'Minijuego' },
+  '01': { en:'Looping video animation', es:'Animación en video en loop' },
+  '03': { en:'Looping video', es:'Video en loop' },
+  '06': { en:'Minigame', es:'Minijuego' },
+  '07': { en:'Minigame', es:'Minijuego' },
+  '11': { en:'Minigame', es:'Minijuego' },
+  '12': { en:'Interactive web page, driven by scrolling', es:'Página web interactiva, guiada por scrolling' },
+  'cc': { en:'Animated text over digital photograph', es:'Texto animado sobre fotografía digital' },   // Carlos, 27 Oct
+};
+// TECHNIQUE row: Carlos' edits of the texts in ../entrega-intermedia/sitio/data.js (28 Oct), for this page only
+const MEDIUM = {
+  '01': { en:'3D animation made in JavaScript with three.js (r170, WebGL), rendered to video; 8.5-second loop, 1920×1080',
+          es:'Animación 3D hecha en JavaScript con three.js (r170, WebGL), renderizada a video; loop de 8.5 segundos, 1920×1080' },
+  '03': { en:'3D animation made in JavaScript with three.js (r170, WebGL), rendered to video, with sound; 34.4-second loop, 1080×2160',
+          es:'Animación 3D hecha en JavaScript con three.js (r170, WebGL), renderizada a video, con sonido; loop de 34.4 segundos, 1080×2160' },
+  '06': { en:'interactive web page in JavaScript with three.js (r170, WebGL) and GLSL shaders, with 3D scans; 1440×1440',
+          es:'Página web interactiva en JavaScript con three.js (r170, WebGL) y shaders GLSL, con escaneos 3D; 1440×1440' },
+  '07': { en:'browser game in JavaScript (2D canvas) made from my hand drawings cut into layers, with one 3D figure rendered with three.js (r170); 3:4, 2690×3626',
+          es:'Juego de navegador en JavaScript (canvas 2D) hecho con mis dibujos a mano recortados en capas, con una figura 3D renderizada con three.js (r170); 3:4, 2690×3626' },
+  '11': { en:'browser game in JavaScript with 3D figures rendered with three.js (r170) and the Web Audio API; 1440×1440',
+          es:'Juego de navegador en JavaScript con figuras 3D renderizadas con three.js (r170) y la Web Audio API; 1440×1440' },
+  '12': { en:'web page in HTML and JavaScript with WebGL',
+          es:'Página web en HTML y JavaScript con WebGL' },
+  'cc': { en:'Curriculum Vitae in PDF format processed by a recruitment ATS, recovered by the author as formatted text and overlaid as animation on a digital photograph',
+          es:'Curriculum Vitae en formato PDF procesado por un ATS de reclutamiento, recuperado por el autor como texto formateado y sobrepuesto como animación en una fotografía digital' },
+};
+const titleOf = w => w.titles[lang];                          // the titles change with the language
+// in the uppercase titles the part in brackets keeps the case it was written in, e.g. (A-play-I)
+const titleHTML = w => titleOf(w).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/-/g, '\u2011')   // never split at a hyphen
+  .replace(/ (\(.*\))$/, '<span class="as-is">$1</span>');                                                    // brackets on their own line
+const T = {
+  en:{ again:'tap again to open', swipe:'SWIPE', scrolldown:'SCROLLER', phrase:'How to get a job through a door guarded by a machine?', phrase2:'How to get a job through\na door guarded by a machine?', series:'Artificial Unemployment', enter:'enter →', soon:'coming soon...' },
+  // About the Author: Carlos' text (3 Nov 2026), English = Claude's translation. Paragraphs; {ig} = the Instagram link.
+  about:{
+    es:{ title:'Sobre el autor', p:[
+      'Cali Sterium es un artista visual y sónico de Monterrey, México. Explora medios mixtos y diferentes formatos, tales como acrílico, óleo, tinta, acuarela, diseño de sonido y medios digitales. Actualmente estudia la Maestría en Artes Digitales y Nuevos Medios en el Tec de Monterrey (2026).',
+      'Su estética es icónica, directa, simple y profunda. Le gustan los acertijos que no son fáciles de resolver, caminar al aire libre, meditar y contemplar.',
+      'Desempleo Artificial es una muestra de lo que viven millones de personas que están intentando encontrar un trabajo cuando su proceso de reclutamiento está mediado por una máquina (Inteligencia Artificial).',
+      'Puedes contactar al autor en Instagram: {ig}' ] },
+    en:{ title:'About the author', p:[
+      'Cali Sterium is a visual and sonic artist from Monterrey, Mexico. He explores mixed media and different formats, such as acrylic, oil, ink, watercolour, sound design and digital media. He is currently studying the Master\'s in Digital Arts and New Media at Tec de Monterrey (2026).',
+      'His aesthetic is iconic, direct, simple and deep. He likes riddles that are not easy to solve, walking outdoors, meditating and contemplating.',
+      'Artificial Unemployment shows what millions of people are living through as they try to find a job when their recruitment process is mediated by a machine (Artificial Intelligence).',
+      'You can contact the author on Instagram: {ig}' ] } },
+  es:{ again:'toca otra vez para abrir', swipe:'DESLIZA', scrolldown:'SCROLLER', phrase:'¿Cómo conseguir trabajo a través de una puerta vigilada por una máquina?', phrase2:'¿Cómo conseguir trabajo a través de\nuna puerta vigilada por una máquina?', series:'Desempleo Artificial', enter:'entrar →', soon:'próximamente...' },
+};
+const onLang = [];
+let lang = 'es', current = null;               // current = the work open in the popup
+try { lang = localStorage.getItem('au_lang') || 'es'; } catch (e) {}
+
+// ---------- atlas: 3x3 cells; every frame each video is drawn into its cell (stand-in for the single atlas video) ----------
+const CELL = PRINT ? 2048 : 512, atlasCv = document.createElement('canvas');
+atlasCv.width = atlasCv.height = CELL * 3;
+const actx = atlasCv.getContext('2d');
+function placeholder() {
+  const c = document.createElement('canvas'); c.width = 720; c.height = 720; const g = c.getContext('2d');
+  g.fillStyle = '#2a2a2a'; g.fillRect(0, 0, 720, 720);
+  g.strokeStyle = '#444'; g.lineWidth = 3;
+  for (let x = 0; x <= 720; x += 60) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 720); g.stroke(); g.beginPath(); g.moveTo(0, x); g.lineTo(720, x); g.stroke(); }
+  g.fillStyle = '#ddd'; g.font = 'bold 150px "Times New Roman"'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('09', 360, 360);
+  return c;
+}
+function loadVideo(src) {
+  return new Promise((res, rej) => {
+    const v = document.createElement('video');
+    v.muted = true; v.loop = true; v.playsInline = true; v.autoplay = true; v.preload = 'auto';
+    v.onloadeddata = () => { v.play().catch(() => {}); res(v); };
+    v.onerror = () => rej(new Error('video ' + src));
+    v.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none';
+    document.body.appendChild(v);   // kept in the page so every browser keeps decoding it
+    v.src = src;
+  });
+}
+
+// ---------- model: MakeHuman base mesh, young male (CC0), already in A-pose ----------
+const B = window.BODY;
+const b64 = (s, T) => { const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new T(u.buffer); };
+const pos = b64(B.pos, Float32Array), index = b64(B.idx, Uint32Array);
+const N = pos.length / 3;
+const J = n => new THREE.Vector3(...B.joints[n]);
+const vpart = new Int8Array(N);
+const v = new THREE.Vector3();
+
+// distance from a point to a polyline
+function distLine(p, pts) {
+  let d = 1e9;
+  for (let k = 0; k < pts.length - 1; k++) {
+    const a = pts[k], ab = pts[k + 1].clone().sub(a);
+    const t = Math.min(1, Math.max(0, p.clone().sub(a).dot(ab) / ab.lengthSq()));
+    d = Math.min(d, p.distanceTo(a.clone().addScaledVector(ab, t)));
+  }
+  return d;
+}
+const ARM = { r: ['r-shoulder', 'r-elbow', 'r-hand', 'r-finger-3-4'], l: ['l-shoulder', 'l-elbow', 'l-hand', 'l-finger-3-4'] };
+const armPts = { r: ARM.r.map(J), l: ARM.l.map(J) };
+const neckY = J('neck').y, chestY = 3.45, crotch = new THREE.Vector3(0, 0.15, 0);
+function partAt(v) {
+  const s = v.x >= 0 ? 'l' : 'r', sg = Math.sign(v.x) || 1;
+  const sh = armPts[s][0], dir = armPts[s][1].clone().sub(sh).normalize();
+  if (v.clone().sub(sh).dot(dir) > 0.05 && distLine(v, armPts[s]) < 0.95) {                     // arm (from the shoulder)
+    const wr = armPts[s][2], fa = wr.clone().sub(armPts[s][1]).normalize();
+    return v.clone().sub(wr).dot(fa) > -0.05 ? 0 : (s === 'r' ? 3 : 4);                          // the hand stays plain
+  }
+  if (v.y > neckY - 0.15) return 0;                                                                // face + neck
+  if ((v.x - crotch.x) * -sg * 0.58 + (v.y - crotch.y) * 0.82 < 0)                                  // below the groin line
+    return v.y > J(s + '-knee').y ? (s === 'r' ? 5 : 6) : v.y < J(s + '-ankle').y + 0.1 ? 0 : (s === 'r' ? 7 : 8);   // the foot stays plain
+  return v.y > chestY ? 1 : 2;
+}
+for (let i = 0; i < N; i++) vpart[i] = partAt(v.fromArray(pos, i * 3));
+let geo = new THREE.BufferGeometry();
+geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+geo.setIndex(new THREE.BufferAttribute(index, 1));
+geo.computeVertexNormals();
+const idx = index;
+geo = geo.toNonIndexed();
+const P = geo.attributes.position, M = P.count;
+const tpart = new Float32Array(M);
+for (let t = 0; t < M / 3; t++) {
+  const a = vpart[idx[t * 3]], b = vpart[idx[t * 3 + 1]], c = vpart[idx[t * 3 + 2]];
+  const p = (a === b || a === c) ? a : (b === c ? b : a);
+  tpart[t * 3] = tpart[t * 3 + 1] = tpart[t * 3 + 2] = p;
+}
+geo.setAttribute('part', new THREE.BufferAttribute(tpart, 1));
+
+// ---------- per-part frames: axis along the part, front toward the camera ----------
+const UP = new THREE.Vector3(0, 1, 0), FRONT = new THREE.Vector3(0, 0, 1);
+const seg = (a, b) => [J(a), J(b)];
+const AX = [
+  [J('neck'), J('head-2')],
+  [new THREE.Vector3(0, chestY, 0), J('neck')],
+  [crotch, new THREE.Vector3(0, chestY, 0)],
+  seg('r-finger-3-4', 'r-shoulder'), seg('l-finger-3-4', 'l-shoulder'),
+  seg('r-knee', 'r-upper-leg'), seg('l-knee', 'l-upper-leg'),
+  seg('r-ankle', 'r-knee'), seg('l-ankle', 'l-knee'),
+];
+const frames = AX.map(([a, b], p) => {
+  const A = p <= 2 ? UP.clone() : b.clone().sub(a).normalize();      // image "up" points toward the body
+  const F = FRONT.clone().sub(A.clone().multiplyScalar(FRONT.dot(A))).normalize();
+  const S = new THREE.Vector3().crossVectors(A, F);
+  return { O: a.clone().add(b).multiplyScalar(0.5), A, F, S, y0: 1e9, y1: -1e9, r: 0, n: 0, sum: new THREE.Vector3() };
+});
+const tmp = new THREE.Vector3();
+for (let i = 0; i < M; i++) {
+  const f = frames[tpart[i]]; tmp.fromBufferAttribute(P, i);
+  f.sum.add(tmp); f.n++;
+}
+// torso centres = centroid of the part (keeps the picture centred on the body)
+for (let p = 0; p <= 2; p++) { const f = frames[p]; const c = f.sum.clone().divideScalar(f.n); f.O.set(0, c.y, c.z); }
+for (let i = 0; i < M; i++) {
+  const f = frames[tpart[i]]; tmp.fromBufferAttribute(P, i).sub(f.O);
+  const y = tmp.dot(f.A); f.y0 = Math.min(f.y0, y); f.y1 = Math.max(f.y1, y);
+  f.r += tmp.addScaledVector(f.A, -y).length();
+}
+frames.forEach(f => f.r /= f.n);
+
+
+// ---------- previews ----------
+// for print: the full-size first frame of each work (media/<work>/poster.jpg); the unmade work 9 stays plain gray
+const POSTER = { '01':'01-shrinking-to-fit', '02':'02-candidates-vs-recruiters', '03':'03-growing-to-fit', '06':'06-super-easy-apply',
+                 '07':'07-match-catch', '11':'11-a-play-i', '12':'12-scroll-down-to-apply', 'cc':'the-corporate-cali' };
+const loadImg = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error(src)); i.src = src; });
+function plainGray() { const c = document.createElement('canvas'); c.width = c.height = 16; const g = c.getContext('2d'); g.fillStyle = '#7a7a7a'; g.fillRect(0, 0, 16, 16); return c; }
+// a better moment than the first frame where a full-size video exists (seconds)
+const PRINT_FRAME = { '03':['03-growing-to-fit/growing-to-fit_1080.mp4', +(Q.get('t03') || 24)] };
+function videoFrame([src, t]) {
+  return new Promise((res, rej) => {
+    const v = document.createElement('video'); v.muted = true; v.preload = 'auto';
+    v.onloadeddata = () => { v.onseeked = () => res(v); v.currentTime = t; };
+    v.onerror = () => rej(new Error(src)); v.src = 'media/' + src;
+  });
+}
+function testCard(p) { const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, 512, 512); g.fillStyle = '#c00'; g.font = 'bold 200px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('R' + p, 256, 200); g.fillStyle = '#00c'; g.fillRect(0, 440, 512, 72); return c; }
+const imgs = Q.has('testtex') ? PARTS.map((w, p) => testCard(p)) : await Promise.all(PARTS.map(w => PRINT ? (w.id ? (PRINT_FRAME[w.id] ? videoFrame(PRINT_FRAME[w.id]) : loadImg('media/' + POSTER[w.id] + '/poster.jpg')) : plainGray())
+                                                  : (w.thumb ? loadVideo(SITE + w.thumb) : plainGray() /* the face: plain body */)));
+const aspect = imgs.map(im => (im.videoWidth || im.width) / (im.videoHeight || im.height));
+const cellOf = p => [(p % 3) * CELL, Math.floor(p / 3) * CELL];
+imgs.forEach((im, p) => actx.drawImage(im, ...cellOf(p), CELL, CELL));
+
+const atlas = new THREE.CanvasTexture(atlasCv);
+atlas.colorSpace = THREE.SRGBColorSpace; atlas.generateMipmaps = false; atlas.minFilter = THREE.LinearFilter;
+atlas.flipY = false;
+
+// ---------- the CV, as the ATS extracted it, in VGA letters: a 128 x 64 character sheet that repeats ----------
+await document.fonts.load('32px VGA');
+await Promise.all(['300 20px "IBM Plex Sans Condensed"', '500 14px "IBM Plex Mono"'].map(f => document.fonts.load(f).catch(() => {})));
+const COLS = 128, ROWS = 64, cvCv = document.createElement('canvas');
+cvCv.width = COLS * 16; cvCv.height = ROWS * 32;
+{
+  const g = cvCv.getContext('2d'), txt = CV_TEXT.replace(/\s+/g, ' ');
+  g.fillStyle = '#000'; g.fillRect(0, 0, cvCv.width, cvCv.height);
+  g.fillStyle = '#fff'; g.font = '32px VGA'; g.textBaseline = 'top';
+  let k = 0;
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) { g.fillText(txt[k % txt.length], c * 16, r * 32 + 2); k++; }
+}
+const cvTex = new THREE.CanvasTexture(cvCv);
+cvTex.wrapS = cvTex.wrapT = THREE.RepeatWrapping; cvTex.anisotropy = 8; cvTex.flipY = false;
+const CV_H = CVMODE === 2 ? 0.2 : 0.13;                      // letter height in body units (the body is ~17 tall)
+
+// The part and the wrapped picture coordinates are worked out per pixel, so the cuts are clean lines.
+const hov = new Float32Array(9);
+const mat = new THREE.ShaderMaterial({
+  uniforms: {
+    atlas: { value: atlas }, hov: { value: hov }, along: { value: LIMBS === 'along' ? 1 : 0 },
+    // works whose picture stands upright on its limb instead of lying along it (Growing, Building a New Imaginary)
+    upr: { value: PART_WORK.map(id => ['03', 'cc', '12'].includes(id) ? 1 : 0) },
+    armR: { value: armPts.r }, armL: { value: armPts.l },
+    neckY: { value: neckY }, chestY: { value: chestY }, kneeR: { value: J('r-knee').y }, kneeL: { value: J('l-knee').y },
+    ankleR: { value: J('r-ankle').y }, ankleL: { value: J('l-ankle').y },
+    fO: { value: frames.map(f => f.O) }, fA: { value: frames.map(f => f.A) },
+    fF: { value: frames.map(f => f.F) }, fS: { value: frames.map(f => f.S) },
+    fY: { value: frames.map(f => new THREE.Vector2((f.y0 + f.y1) / 2, f.y1 - f.y0)) },
+    fR: { value: frames.map(f => f.r) }, asp: { value: aspect },
+    cvTex: { value: cvTex }, cvMode: { value: CVMODE }, cvCell: { value: new THREE.Vector2(CV_H / 2, CV_H) },
+    cvGrid: { value: new THREE.Vector2(COLS, ROWS) },
+    scanY: { value: -99 }, scanMode: { value: SCANMODE }, time: { value: 0 }, scanGlow: { value: 0 },
+    freeHov: { value: 0 },                                  // Untitled hovered: face, hands and feet turn turquoise
+  },
+  vertexShader: `
+    varying vec3 vP; varying vec3 vN; varying vec3 vV;
+    void main(){ vP = position; vN = normalize(normalMatrix * normal);
+      vec4 mv = modelViewMatrix * vec4(position,1.); vV = -mv.xyz; gl_Position = projectionMatrix * mv; }`,
+  fragmentShader: `
+    uniform sampler2D atlas; uniform float hov[9]; uniform float along; uniform float upr[9];
+    uniform vec3 armR[4]; uniform vec3 armL[4];
+    uniform float neckY, chestY, kneeR, kneeL, ankleR, ankleL;
+    uniform vec3 fO[9]; uniform vec3 fA[9]; uniform vec3 fF[9]; uniform vec3 fS[9];
+    uniform vec2 fY[9]; uniform float fR[9]; uniform float asp[9];
+    uniform sampler2D cvTex; uniform float cvMode; uniform vec2 cvCell; uniform vec2 cvGrid;
+    uniform float scanY, scanMode, time, scanGlow, freeHov;
+    float hash(vec2 v){ return fract(sin(dot(v, vec2(12.9898, 78.233))) * 43758.5453); }
+    varying vec3 vP; varying vec3 vN; varying vec3 vV;
+    float dseg(vec3 p, vec3 a, vec3 b){ vec3 ab = b - a; float t = clamp(dot(p - a, ab) / dot(ab, ab), 0., 1.); return length(p - a - ab * t); }
+    int partOf(vec3 v){
+      bool l = v.x >= 0.; float sg = l ? 1. : -1.;
+      vec3 a0 = l ? armL[0] : armR[0], a1 = l ? armL[1] : armR[1], a2 = l ? armL[2] : armR[2], a3 = l ? armL[3] : armR[3];
+      float d = min(dseg(v, a0, a1), min(dseg(v, a1, a2), dseg(v, a2, a3)));
+      if (dot(v - a0, normalize(a1 - a0)) > .05 && d < .95) return dot(v - a2, normalize(a2 - a1)) > -.05 ? 0 : (l ? 4 : 3);   // hands plain
+      if (v.y > neckY - .15) return 0;
+      if (v.x * -sg * .58 + (v.y - .15) * .82 < 0.) return v.y > (l ? kneeL : kneeR) ? (l ? 6 : 5) : v.y < (l ? ankleL : ankleR) + .1 ? 0 : (l ? 8 : 7);   // feet plain
+      return v.y > chestY ? 1 : 2;
+    }
+    float fold(float x){ return 1. - abs(1. - mod(x, 2.)); }        // mirrored repeat behind the part
+    void main(){
+      int p = partOf(vP);
+      vec3 q3 = vP - fO[p];
+      float y = dot(q3, fA[p]), th = atan(dot(q3, fS[p]), dot(q3, fF[p]));
+      float s = th * fR[p], ym = fY[p].x, len = fY[p].y;
+      vec2 uv;
+      if (p >= 3 && along > .5 && upr[p] < .5) { float Wd = len, Ht = Wd / asp[p]; uv = vec2(.5 + (y - ym) / Wd, .5 + s / Ht); }
+      else { float Ht = len, Wd = Ht * asp[p]; uv = vec2(.5 + s / Wd, .5 + (y - ym) / Ht); }   // + : not mirrored
+      vec2 cell = vec2(float(p - (p/3)*3), float(p/3));
+      vec2 q = vec2(fold(uv.x), 1. - fold(uv.y));
+      vec3 c = texture2D(atlas, (cell + .002 + q * .996) / 3.).rgb;
+      c = pow(c, vec3(2.2));
+      float h = p == 0 ? 0. : hov[p];                    // part 0 (face, hands, feet) has no picture: it lights up green instead
+      float g = dot(c, vec3(.2126,.7152,.0722));
+      vec3 col = mix(vec3(g) * .9 + .03, c, h);
+      col = mix(col, vec3(.13), hov[0]);                 // A New Land hovered: the videos go, the body is plain gray
+      // the CV letters: flat over the body (a, b) or wrapped around each part (c); they slide aside and fade on hover
+      if (cvMode > .5) {
+        vec2 ch = cvMode > 2.5 ? vec2(s / cvCell.x + 37. * float(p), -(y - ym) / cvCell.y + 11. * float(p))
+                               : vec2(vP.x / cvCell.x, -vP.y / cvCell.y);
+        ch.x += sign(vP.x - fO[p].x + .001) * h * 6.;
+        ch.y -= time * .9;                                   // the text keeps flowing down, as if being read
+        vec2 ci = floor(ch);                                 // and now and then a letter is re-read: it changes
+        float r = hash(ci + floor(time * 5. + hash(ci) * 7.));
+        if (r < .05) ch.x += floor(r * 2000.);
+        float m = texture2D(cvTex, ch / cvGrid).r * (1. - h) * (1. - hov[0]) * (p == 0 ? 1. - freeHov : 1.);   // and the falling letters go too
+        if (cvMode > 1.5 && cvMode < 2.5) col = col * mix(.7, 1., h) + m * .42;
+        else col = mix(col, vec3(.92), m * .55);
+        col = mix(col, c, h);              // on hover the work shows clean, in full colour
+      }
+      // the scan line passing over the body
+      if (scanMode > .5) {
+        vec3 G = vec3(.578, .397, .084);                    // mustard (#c8a951)
+        float d = (vP.y - scanY) / (scanMode > 1.5 ? .22 : .05);
+        float trail = vP.y > scanY ? exp(-(vP.y - scanY) / 4.) : 0.;   // what the line has just read stays green a while
+        float lum = dot(col, vec3(.2126, .7152, .0722));
+        col = mix(col, G * (.12 + lum * 1.6), clamp(trail * scanGlow, 0., 1.) * (1. - h));
+        col += G * exp(-d * d) * scanGlow * .9;
+      }
+      vec3 n = normalize(vN), V = normalize(vV);
+      vec3 L = normalize(vec3(-.35,.55,.75));
+      float dif = max(dot(n, L), 0.);
+      float rim = pow(1. - max(dot(n, V), 0.), 3.);
+      vec3 o = col * (.30 + .85 * dif) + rim * .12;
+      // A New Land hovered: no volume left, only the candidate's silhouette in flat white (no videos, letters or scan)
+      if (p == 0) o = mix(o, vec3(.887), freeHov);           // Untitled hovered: face, hands and feet flat white (no volume), no letters
+      o = mix(o, vec3(.887), hov[0]);                        // #f2f2f2 (flat: no volume; the halo softens the contour)
+      gl_FragColor = vec4(pow(o, vec3(1./2.2)), 1.);
+    }`,
+});
+
+const body = new THREE.Mesh(geo, mat);
+
+// ---------- scene ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.body.prepend(renderer.domElement);
+const dripCv = document.createElement('canvas'), dctx = dripCv.getContext('2d');
+dripCv.style.cssText = 'position:absolute;inset:0;pointer-events:none';
+renderer.domElement.after(dripCv);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x000000);
+scene.add(body);
+const box = new THREE.Box3().setFromObject(body), ctr = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+// A New Land hovered: a white halo of light coming out of the silhouette (27 Oct, 3 proposals ?halo=a|b|c).
+// Done on the picture: the white silhouette is drawn small into a mask, blurred twice (near and far glow), and the light is
+// added over the page. a = an aura that breathes, b = rays of light leaving the body and turning slowly, c = waves of light
+// going out from the contour one after another. The body's own contour dims a little so it melts into the light.
+const HALO = Q.get('halo') || 'a';
+const halo = (() => {
+  const maskScene = new THREE.Scene(), maskMesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  maskScene.add(maskMesh); maskScene.background = new THREE.Color(0x000000);
+  const rt = () => new THREE.WebGLRenderTarget(4, 4, { depthBuffer: true });
+  const M0 = rt(), A = rt(), B = rt(), N1 = rt(), F1 = rt();
+  const quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), quadGeo = new THREE.PlaneGeometry(2, 2);
+  const VS = `varying vec2 vUv; void main(){ vUv = position.xy * .5 + .5; gl_Position = vec4(position.xy, 0., 1.); }`;
+  const blurMat = new THREE.ShaderMaterial({ uniforms: { src: { value: null }, dir: { value: new THREE.Vector2() } }, vertexShader: VS,
+    fragmentShader: `uniform sampler2D src; uniform vec2 dir; varying vec2 vUv;
+      void main(){ vec4 c = vec4(0.); float W = 0.;
+        for (int i = -8; i <= 8; i++) { float w = exp(-float(i * i) / 24.); c += texture2D(src, vUv + dir * float(i)) * w; W += w; }
+        gl_FragColor = c / W; }`, depthTest: false, depthWrite: false });
+  const compMat = new THREE.ShaderMaterial({
+    uniforms: { mask: { value: M0.texture }, near: { value: N1.texture }, far: { value: F1.texture }, amt: { value: 0 }, time: mat.uniforms.time,
+                mode: { value: 'abc'.indexOf(HALO) }, c0: { value: new THREE.Vector2(.5, .5) }, asp: { value: 1 } },
+    vertexShader: VS,
+    fragmentShader: `uniform sampler2D mask, near, far; uniform float amt, time, mode, asp; uniform vec2 c0; varying vec2 vUv;
+      float hash(float n){ return fract(sin(n) * 43758.5453); }
+      void main(){
+        float m = texture2D(mask, vUv).r, n = texture2D(near, vUv).r, f = texture2D(far, vUv).r;
+        vec2 q = (vUv - c0) * vec2(asp, 1.);
+        float g;
+        if (mode < .5) {                                   // a: aura that breathes
+          float br = .94 + .12 * (.8 * sin(time * 1.4) + .2 * sin(time * 3.1));   // breathes only between half and full (was .58-1.06)
+          g = (n * .9 + f * 1.3) * br;
+        } else if (mode < 1.5) {                           // b: rays from the body, slowly turning
+          float acc = 0., wsum = 0.; vec2 st = (vUv - c0) / 28.;
+          for (int i = 1; i <= 28; i++) { float w = pow(.95, float(i)); acc += texture2D(mask, vUv - st * float(i) * .55).r * w; wsum += w; }
+          float ang = atan(q.y, q.x);
+          float rays = .55 + .45 * sin(ang * 23. + time * .35 + 2. * sin(ang * 6. - time * .3)) * sin(ang * 9. - time * .2);
+          g = n * .7 + f * .5 + acc / wsum * 1.3 * (1. - smoothstep(.45, .9, n)) * rays;
+        } else {                                           // c: waves of light leaving the contour
+          float d = 1. - clamp(f * 1.6, 0., 1.);            // ~0 at the body, 1 far away
+          float wave = pow(.5 + .5 * sin(d * 26. - time * 2.6), 6.);
+          g = n * .8 + f * 1.6 * (.25 + .9 * wave);
+        }
+        g *= amt;                                          // no damping anywhere: it darkened the hollows (armpits, crotch), where the glow is strongest
+        gl_FragColor = vec4(vec3(g), 1.);
+      }`,
+    transparent: true, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending });
+  const quad = new THREE.Mesh(quadGeo, blurMat), quadScene = new THREE.Scene(); quad.frustumCulled = false; quadScene.add(quad);
+  const pass = (material, target) => { quad.material = material; renderer.setRenderTarget(target); renderer.render(quadScene, quadCam); };
+  function blur(src, dst, tmp, r) {
+    const w = src.width, h = src.height;
+    blurMat.uniforms.src.value = src.texture; blurMat.uniforms.dir.value.set(r / w, 0); pass(blurMat, tmp);
+    blurMat.uniforms.src.value = tmp.texture; blurMat.uniforms.dir.value.set(0, r / h); pass(blurMat, dst);
+  }
+  return function render() {
+    const amt = hov[FREE];
+    renderer.setRenderTarget(null); renderer.render(scene, camera);
+    if (amt < 0.002) return;
+    const sz2 = renderer.getDrawingBufferSize(new THREE.Vector2()), w = Math.max(4, sz2.x >> 2), h = Math.max(4, sz2.y >> 2);
+    for (const t of [M0, A, B, N1, F1]) if (t.width !== w || t.height !== h) t.setSize(w, h);
+    renderer.setRenderTarget(M0); renderer.render(maskScene, camera);
+    blur(M0, N1, A, 1.0);                                  // near glow
+    blur(N1, B, A, 2.5); blur(B, F1, A, 4.0);              // far glow
+    const c = ctr.clone().project(camera);
+    compMat.uniforms.c0.value.set(c.x * .5 + .5, c.y * .5 + .5); compMat.uniforms.asp.value = w / h; compMat.uniforms.amt.value = amt;
+    const ac = renderer.autoClear; renderer.autoClear = false;
+    pass(compMat, null);
+    renderer.autoClear = ac;
+  };
+})();
+const camera = new THREE.PerspectiveCamera(26, 1, 0.1, 100);
+let W = 0, H = 0, OY = 0, CH = 0, MOB = false, DRIP_END = 1e9;   // OY/CH = top and height of the 3D picture in the page
+function resize() {
+  // the layout viewport, not innerWidth: on phones innerWidth grows when the browser zooms out to show content wider
+  // than the screen (the 3D canvas then widened again: the body and the question were cut on the right, 3 Nov 2026)
+  W = document.documentElement.clientWidth; H = document.documentElement.clientHeight;
+  // phones and portrait tablets get the stacked, scrolling layout
+  MOB = W < 760 || W / H < 0.85;
+  document.documentElement.classList.toggle('mob', MOB); document.body.classList.toggle('mob', MOB);
+  const q = document.getElementById('q');
+  document.querySelector('.lang').style.top = '';
+  if (MOB) {
+    fitText(q, W - 32, Math.max(30, W / 22));
+    q.style.left = '16px'; q.style.top = '66px';
+    OY = 66 + q.offsetHeight + 10;
+    CH = Math.round(Math.min(H * 0.75, W * 1.7));
+  } else { OY = 0; CH = H; }
+  renderer.setSize(W, CH); camera.aspect = W / CH;
+  renderer.domElement.style.top = dripCv.style.top = OY + 'px';
+  dripCv.width = W; dripCv.height = CH;
+  // fit the whole body (on desktops with room for the titles on both sides), at 72 % of that
+  const fitH = sz.y * (MOB ? 1.14 : 1.18), fitW = (sz.x + (MOB ? 1 : 15)) / camera.aspect;
+  const dist = Math.max(fitH, fitW) / 2 / Math.tan(13 * Math.PI / 180) / (MOB ? 1 : 0.72);
+  const up = MOB ? sz.y * 0.05 : sz.y * 0.03;                 // a little higher, so the AI voice fits under the feet
+  camera.position.set(ctr.x, ctr.y + sz.y * 0.05 - up, ctr.z + dist);
+  camera.lookAt(ctr.x, ctr.y - up, ctr.z);
+  camera.updateProjectionMatrix();
+  layoutLabels();
+}
+// one line of text exactly `width` px wide (no bigger than `max` px)
+function fitText(el, width, max) {
+  el.style.width = 'auto'; el.style.fontSize = '100px';
+  const w = el.scrollWidth;
+  el.style.fontSize = Math.min(max, 100 * width / w).toFixed(2) + 'px';
+  el.style.width = width + 'px';
+}
+
+// ---------- titles around the body ----------
+const labelsEl = document.getElementById('labels'), svg = document.getElementById('lines'), logEl = document.getElementById('log');
+const SIDE = [1, -1, 1, -1, 1, -1, 1, -1, 1];               // face, belly and the left limbs on the right
+const NUM = [9, 1, 6, 2, 5, 3, 7, 4, 8];                    // number of each slot's work (slot 0 = 09, off the body)
+document.body.classList.add('ly' + LY);
+const POP = Q.get('pop') || 'c';                             // popup: c = piece left, caption column right (chosen); a|b proposals
+if (POP) document.body.classList.add('pop-' + POP);
+const Q2 = Q.get('q2') !== '0';                              // the question on two centred lines (approved); ?q2=0 = one line
+if (Q2) { document.getElementById('q').dataset.t = 'phrase2'; document.body.classList.add('q2'); }
+if (Q.get('lang')) lang = Q.get('lang');     // the AI voice keeps the VGA letters
+const numText = n => SIDEV === 'b' ? 'No. ' + String(n).padStart(2, '0') : SIDEV === 'c' ? '[' + String(n).padStart(2, '0') + ']' : String(n).padStart(2, '0');
+const labs = PARTS.map((w, p) => {
+  const d = document.createElement('div'); d.className = 'lab' + (w.id ? '' : ' soon');
+  d.innerHTML = '<div class="n">' + (SIDEV ? numText(NUM[p]) : NUM[p]) + '</div><div class="t"></div><div class="d"></div><div class="e"></div><div class="again"></div>';
+  d.addEventListener('pointerenter', () => setTarget(p));
+  d.addEventListener('pointerleave', () => setTarget(-1));
+  d.addEventListener('click', () => openPart(p));
+  labelsEl.appendChild(d);
+  d.style.order = NUM[p];
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.innerHTML = '<polyline fill="none" stroke-width="1.2"/><circle r="' + (LAY ? 9 : 3.5) + '" stroke="none"/><text>' + NUM[p] + '</text>';
+  svg.appendChild(g);
+  if (p === FREE) { d.classList.add('free'); g.classList.add('free'); }
+  return { d, g };
+});
+function fillLabels() {
+  PARTS.forEach((w, p) => {
+    const d = labs[p].d;
+    d.querySelector('.t').textContent = titleOf(w).replace(/ \(.*\)$/, '').replace(/-/g, '\u2011');   // on the page: no brackets, cleaner
+    d.querySelector('.d').textContent = w.text[lang];
+    const e = d.querySelector('.e');
+    e.textContent = 'Apply';                                   // Untitled has its button too (27 Oct): it lights the candidate up
+    d.querySelector('.again').textContent = T[lang].again;
+    e.classList.add('btn');
+  });
+}
+// phones and tablets: a gray APPLY button on each part; first touch shows the work's title below, second touch opens it
+const applyBtns = PARTS.map((w, p) => {
+  const b = document.createElement('button'); b.className = 'apply'; b.textContent = 'Apply';
+  b.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') setTarget(p); });
+  b.addEventListener('click', e => {
+    if (e.pointerType === 'mouse' || target === p) openPart(p);
+    else setTarget(p);
+  });
+  document.body.appendChild(b);
+  return b;
+});
+// the top of the head: the highest vertex of the body
+const TOP_OF_HEAD = new THREE.Vector3(); { let k = 0; for (let i = 1; i < N; i++) if (pos[i * 3 + 1] > pos[k * 3 + 1]) k = i; TOP_OF_HEAD.fromArray(pos, k * 3); }
+// where each part is pointed at: the torso parts at their centre, the limbs at the middle of their bone
+const anchors3 = frames.map((f, p) => (p < 3 ? f.sum.clone().divideScalar(f.n) : AX[p][0].clone().add(AX[p][1]).multiplyScalar(0.5)).addScaledVector(f.F, f.r));
+// A New Land (27 Oct) points at the candidate's LEFT FOOT: the middle of the visible top of the foot
+// (front vertices just below the ankle; the sole is under the drip)
+{ const ay = J('l-ankle').y + 0.1, c = new THREE.Vector3(); let n = 0;
+  for (let i = 0; i < N; i++) if (pos[i * 3] > 0 && pos[i * 3 + 1] < ay && pos[i * 3 + 1] > ay - 0.3 && pos[i * 3 + 2] > J('l-ankle').z) { c.x += pos[i * 3]; c.y += pos[i * 3 + 1]; c.z += pos[i * 3 + 2]; n++; }
+  anchors3[FREE] = c.divideScalar(n); anchors3[FREE].y += 0.15; }   // a little higher, so the dot sits on the foot
+function screen(p3) { const p = p3.clone().project(camera); return { x: (p.x + 1) / 2 * W, y: (1 - p.y) / 2 * CH }; }   // in the 3D picture
+function layoutLabels() {
+  const a = anchors3.map(screen), list = document.getElementById('list'), q = document.getElementById('q');
+  const feetY = screen(new THREE.Vector3(ctr.x, box.min.y, ctr.z + 0.6)).y;
+  if (MOB) {
+    // numbered dots on the body; the works as a list under the AI voice
+    if (list.children.length < 9) [...labs.keys()].sort((i, j) => NUM[i] - NUM[j]).forEach(p => list.appendChild(labs[p].d));
+    a.forEach((pt, p) => { applyBtns[p].style.left = pt.x + 'px'; applyBtns[p].style.top = (pt.y + OY) + 'px'; });
+    const logTop = OY + Math.min(feetY + 14, CH - 3 * 15 - 6);
+    logEl.style.left = '16px'; logEl.style.width = (W - 32) + 'px'; logEl.style.top = logTop + 'px';
+    DRIP_END = logTop - OY - 4;
+    list.style.top = (OY + CH + 18) + 'px';
+    const total = OY + CH + 18 + 120 + 40;
+    document.body.style.height = labelsEl.style.height = total + 'px';
+    return;
+  }
+  document.body.style.height = labelsEl.style.height = '';
+  labs.forEach(({ d }) => { if (d.parentNode === list) labelsEl.appendChild(d); });
+  const midX = screen(ctr).x, off = screen(new THREE.Vector3(ctr.x + 6.3, ctr.y, ctr.z)).x - midX;
+  for (const side of [-1, 1]) {
+    // each column is centred a little below the middle, items 30 px apart
+    // Free Ground keeps its place at the bottom of the right column
+    const items = PARTS.map((_, p) => p).filter(p => SIDE[p] === side).sort((i, j) => (i === FREE ? 1e9 : a[i].y) - (j === FREE ? 1e9 : a[j].y));
+    const hs = items.map(p => labs[p].d.offsetHeight), gap = 30;
+    const total = hs.reduce((x, h) => x + h, 0) + gap * (hs.length - 1);
+    let y = Math.max(90, H * 0.53 - total / 2);
+    items.forEach((p, k) => {
+      const { d, g } = labs[p];
+      const room = d.offsetWidth + 20;
+      const x = side > 0 ? Math.min(midX + off, W - room) : Math.max(midX - off, room);
+      const ly = y + d.querySelector('.t').offsetTop + 9, x2 = x - side * 10;
+      d.style.top = y + 'px';
+      if (side > 0) { d.style.left = x + 'px'; d.style.right = ''; d.style.textAlign = 'left'; }
+      else { d.style.right = (W - x) + 'px'; d.style.left = ''; d.style.textAlign = 'right'; }
+      g.children[0].setAttribute('points', `${a[p].x},${a[p].y} ${x2 - side * 36},${ly} ${x2},${ly}`);
+      g.children[1].setAttribute('cx', a[p].x); g.children[1].setAttribute('cy', a[p].y);
+      y += hs[k] + gap;
+    });
+  }
+  // the question spans exactly the space between the two columns of titles
+  const gapW = Math.round(2 * off - 20);
+  fitText(q, gapW, 64);
+  q.style.left = (midX - gapW / 2) + 'px';
+  const headTop = screen(TOP_OF_HEAD).y;                      // the highest point of the head, as drawn
+  const head = document.getElementById('head'), langEl = document.querySelector('.lang');
+  const midLine = head.offsetTop + head.querySelector('b').offsetHeight;   // between the two lines of the header
+  q.style.top = (LY === 'B' ? Math.max(70, headTop - q.offsetHeight - 52) : Math.max(8, headTop / 2 - q.offsetHeight / 2)) + 'px';   // centred between the top of the window and the head
+  langEl.style.top = LY === 'A' ? (midLine - langEl.offsetHeight / 2) + 'px' : '';
+  document.querySelector('.snd').style.top = (langEl.offsetTop + langEl.offsetHeight + 8) + 'px';
+  // the AI voice under the feet, as wide as the question
+  const logTop = Math.min(feetY + 26, H - 4 * 17 - 14);
+  logEl.style.left = (midX - gapW / 2) + 'px'; logEl.style.width = gapW + 'px'; logEl.style.top = logTop + 'px';
+  DRIP_END = logTop - 6;
+}
+
+// ---------- language ----------
+// Music of Untitled (3 Nov 2026): a loop (Carlos' Splice loop; audio/untitled_loop.wav is a placeholder pad) plays while the
+// silhouette is lit, fading in and out; Web Audio so the loop is gapless. A switch [ sound: on/off ] under the language switch
+// (shown only while lit) mutes it; the choice is kept in localStorage 'au_sound'. Needs http (fetch), as the rest of the page.
+// SND_ON = false (3 Nov 2026): Carlos heard the gap of the placeholder loop in Safari and switched the music off until the
+// sound phase (his Splice loop); set SND_ON = true and put the file in audio/ to bring it back (switch and fades included).
+const SND_ON = false, SND_SRC = 'audio/untitled_loop.wav', SND_GAIN = 0.8, SND_FADE = 1.2;
+let sndOn = true; try { sndOn = localStorage.getItem('au_sound') !== 'off'; } catch (e) {}
+let audioCtx = null, sndBuf = null, sndSrc = null, sndGain = null, sndEl = null, sndElRaf = 0;
+const sndBtn = document.getElementById('sndBtn');
+function sndLabel() { sndBtn.textContent = (lang === 'es' ? '[ sonido: ' : '[ sound: ') + (sndOn ? 'on ]' : 'off ]'); }
+sndLabel();
+// Two players. Over http the loop is fetched and decoded at load (gapless Web Audio buffer, fades on a gain node). Over file://
+// (Carlos double-clicks the page in Safari) fetch is refused, so an <audio> element plays it instead: it must be started inside
+// the click itself (Safari), its loop has a tiny gap and iOS ignores its volume (no fade there).
+if (SND_ON) document.body.classList.add('snd-on');
+if (SND_ON) try {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  sndGain = audioCtx.createGain(); sndGain.gain.value = 0; sndGain.connect(audioCtx.destination);
+  fetch(SND_SRC).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
+    .then(b => audioCtx.decodeAudioData(b)).then(b => { sndBuf = b; }).catch(e => { sndBuf = null; });
+} catch (e) { audioCtx = null; }
+function elFade(to, pauseAtEnd) {
+  cancelAnimationFrame(sndElRaf);
+  const from = sndEl.volume, t0 = performance.now();
+  const step = () => {
+    const k = Math.min(1, (performance.now() - t0) / (SND_FADE * 1000));
+    try { sndEl.volume = from + (to - from) * k; } catch (e) {}
+    if (k < 1) sndElRaf = requestAnimationFrame(step); else if (pauseAtEnd) sndEl.pause();
+  };
+  step();
+}
+function updateMusic() {
+  if (!SND_ON) return;
+  const want = lit && sndOn;
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  if (want) {
+    if (sndBuf && !Q.has('sndel') && !(sndEl && !sndEl.paused)) {   // gapless buffer (http); ?sndel forces the element path for tests
+      if (!sndSrc) { sndSrc = audioCtx.createBufferSource(); sndSrc.buffer = sndBuf; sndSrc.loop = true; sndSrc.connect(sndGain); sndSrc.start(); }
+      const g = sndGain.gain, t = audioCtx.currentTime; g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(SND_GAIN, t + SND_FADE);
+    } else {                                                    // <audio> element (file://, or the buffer not decoded yet)
+      if (!sndEl) { sndEl = new Audio(SND_SRC); sndEl.loop = true; sndEl.preload = 'auto'; }
+      if (sndEl.paused) { try { sndEl.volume = 0; } catch (e) {} sndEl.play().catch(e => console.warn('music', e)); }
+      elFade(SND_GAIN, false);
+    }
+  } else {
+    if (sndSrc) {
+      const g = sndGain.gain, t = audioCtx.currentTime, src = sndSrc; sndSrc = null;
+      g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(0, t + SND_FADE);
+      src.stop(t + SND_FADE + 0.05);
+    }
+    if (sndEl && !sndEl.paused) elFade(0, true);
+  }
+}
+window.__snd = () => ({ on: sndOn, lit, state: audioCtx && audioCtx.state, gain: sndGain && +sndGain.gain.value.toFixed(2), playing: !!sndSrc, loop: sndBuf && sndBuf.duration, el: sndEl ? (sndEl.paused ? 'paused' : 'playing ' + sndEl.volume.toFixed(2)) : null });   // debugging
+sndBtn.addEventListener('click', e => { e.preventDefault(); sndOn = !sndOn; try { localStorage.setItem('au_sound', sndOn ? 'on' : 'off'); } catch (err) {} sndLabel(); updateMusic(); });
+// ---------- About the Author ----------
+const aboutEl = document.querySelector('.about');
+const IG = '<a href="https://www.instagram.com/calisterium/" target="_blank" rel="noopener">@calisterium</a>';
+function renderAbout() {
+  const a = T.about[lang];
+  aboutEl.querySelector('h2').textContent = a.title;
+  aboutEl.querySelector('.ab').innerHTML = a.p.map(t => '<p>' + t.replace('{ig}', IG) + '</p>').join('');
+}
+function setAbout(on) { aboutEl.classList.toggle('open', on); document.body.classList.toggle('ab', on); if (on) { renderAbout(); aboutEl.querySelector('.ap').scrollTop = 0; } }
+document.querySelector('#head b').addEventListener('click', e => { e.stopPropagation(); setAbout(!aboutEl.classList.contains('open')); });
+aboutEl.querySelector('.x').addEventListener('click', () => setAbout(false));
+aboutEl.addEventListener('click', e => { if (e.target === aboutEl) setAbout(false); });
+addEventListener('keydown', e => { if (e.key === 'Escape' && aboutEl.classList.contains('open')) setAbout(false); });
+function setLang(l) {
+  lang = l;
+  try { localStorage.setItem('au_lang', l); } catch (e) {}
+  sndLabel();
+  if (aboutEl.classList.contains('open')) renderAbout();
+  document.documentElement.lang = l;
+  document.querySelectorAll('[data-lang]').forEach(a => a.classList.toggle('on', a.dataset.lang === l));
+  document.querySelectorAll('[data-t]').forEach(s => s.textContent = T[l][s.dataset.t]);
+  fillLabels();
+  if (current) fillInfo(current);
+  if (current && (current.id === '12' || current.id === 'cc')) { const f = piece.querySelector('iframe'); if (f) f.src = pieceSrc(current); }
+  if (W) resize();                                             // mob: the question is fitted in resize()
+  onLang.forEach(f => f());
+}
+document.querySelectorAll('[data-lang]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); setLang(a.dataset.lang); }));
+setLang(lang);
+addEventListener('resize', resize);
+resize();
+
+// ---------- popup (same as the intermediate delivery site) ----------
+const modal = document.createElement('div');
+modal.className = 'modal';
+modal.innerHTML = `<div class="panel">
+  <div class="head2"><h2></h2><button class="x" aria-label="close">×</button></div>
+  <div class="stage"><div class="piece"></div></div>
+  <div class="info"></div>
+</div>`;
+document.body.appendChild(modal);
+if (POP) modal.querySelector('.x').textContent = '[ X ]';
+const panel = modal.querySelector('.panel'), head2 = modal.querySelector('.head2');
+const stage = modal.querySelector('.stage'), piece = modal.querySelector('.piece');
+function fillInfo(w) {
+  const t = L[lang];
+  modal.querySelector('h2').innerHTML = (POP ? '<span class="pn">[' + String(NUM[PARTS.indexOf(w)]).padStart(2, '0') + ']</span>' : '') + titleHTML(w);
+  modal.querySelector('.info').innerHTML = `
+    <table class="ced">
+      <tr><th>${FORMAT_LABEL[lang]}</th><td>${FORMAT[w.id] ? FORMAT[w.id][lang] : ''}</td></tr>
+      <tr><th>${t.artist}</th><td>Cali Sterium</td></tr>
+      <tr><th>${t.series}</th><td>${lang === 'es' ? 'Desempleo Artificial' : 'Artificial Unemployment'}</td></tr>
+      <tr><th>${t.date}</th><td>${w.date[lang]}</td></tr>
+      <tr><th>${t.medium}</th><td>${(MEDIUM[w.id] || w.medium)[lang]}</td></tr>
+    </table>`;
+}
+function fit() {
+  if (!current) return;
+  let PW = panel.clientWidth, PH = panel.clientHeight - head2.offsetHeight, r = current.ratio;
+  if (POP === 'b') { PW *= 0.86; PH -= 150; }
+  // C: the caption column has its own width (clamp in CSS); in narrow windows (<= 900 px) the panel is stacked (display:block)
+  const stacked = MOB || getComputedStyle(panel).display !== 'grid';
+  if (POP === 'c' && !stacked) { PW = panel.clientWidth - head2.offsetWidth; PH = panel.clientHeight; }
+  if (POP === 'c' && stacked) { PW = panel.clientWidth; PH = panel.clientHeight * 0.75 - 44; }
+  let w = PW, h = PW / r;
+  if (h > PH) { h = PH; w = PH * r; }
+  piece.style.width = Math.floor(w) + 'px';
+  piece.style.height = Math.floor(h) + 'px';
+}
+new ResizeObserver(fit).observe(panel);
+// Holding the Gaze has its own Spanish page (scroll-down-to-apply_es.html); ?v: skip old cached copies
+function pieceSrc(w) {
+  const f = w.id === '12' && lang === 'es' ? w.piece.iframe.replace(/\.html$/, '_es.html') : w.piece.iframe;
+  return SITE + f + '?v=20261028x' + (w.id === 'cc' && lang === 'es' ? '&lang=es' : '');   // cc: his CV in Spanish
+}
+function openWork(w) {
+  current = w;
+  fillInfo(w);
+  const pc = w.piece;
+  piece.style.background = pc.bg || '#000';
+  stage.style.background = POP ? 'transparent' : piece.style.background;   // dark styles: only the piece has its colour
+  piece.innerHTML = pc.video
+    ? `<video src="${SITE + pc.video}" autoplay loop playsinline ${pc.sound ? '' : 'muted'}></video>`
+    : `<iframe src="${pieceSrc(w)}" allow="autoplay; fullscreen" title="${titleOf(w)}"></iframe>`;   // ?v: skip old cached copies
+  if (w.id === '12') scrollHint();                              // Holding the Gaze: a nudge toward its scrollbar
+  const fr = piece.querySelector('iframe');                     // Escape pressed inside a game (same origin) closes the popup too
+  if (fr) fr.addEventListener('load', () => { try { fr.contentWindow.addEventListener('keydown', e => { if (e.key === 'Escape') closeWork(); }); } catch (e) {} });
+  const vd = piece.querySelector('video');                      // autoplay with sound refused (iOS): play muted rather than not at all
+  if (vd) { const pr = vd.play(); if (pr && pr.catch) pr.catch(() => { vd.muted = true; vd.play().catch(() => {}); }); }
+  modal.classList.add('open');
+  panel.scrollTop = 0;
+  history.replaceState(null, '', '#' + w.id);
+  requestAnimationFrame(fit);
+}
+// a note at the top of Holding the Gaze, right next to its small green scrollbar; it goes away as soon as the
+// scrollbar is used (scroll) or anything inside the piece is pressed
+function scrollHint() {
+  const h = document.createElement('div'); h.className = 'scroll-hint';
+  const touch = MOB || matchMedia('(pointer: coarse)').matches;   // touch (Carlos, 3 Nov): no scrollbar to point at: SWIPE / DESLIZA, arrow down
+  h.innerHTML = touch ? '<span>' + T[lang].swipe + '</span><b class="dn">&darr;</b>' : '<span>' + T[lang].scrolldown + '</span><b>&rarr;</b>';
+  piece.appendChild(h);
+  const fr = piece.querySelector('iframe'), hide = () => h.classList.add('gone');
+  const watch = () => {
+    try {
+      const win = fr.contentWindow;
+      win.addEventListener('scroll', hide, { once: true });
+      win.addEventListener('pointerdown', hide, { once: true });
+      win.addEventListener('wheel', hide, { once: true, passive: true });
+    } catch (e) { setTimeout(hide, 6000); }                    // a page we cannot listen to: just fade after a while
+  };
+  fr.addEventListener('load', watch);
+  // and, to be sure, a light check of the piece's scroll position
+  const iv = setInterval(() => {
+    if (!h.isConnected) return clearInterval(iv);
+    try { if (fr.contentWindow.scrollY > 4) { hide(); clearInterval(iv); } } catch (e) {}
+  }, 250);
+}
+function closeWork() {
+  modal.classList.remove('open');
+  piece.innerHTML = '';             // stops the video / game and its sound
+  current = null;
+  if (MOB) setTarget(-1);
+  history.replaceState(null, '', location.pathname + location.search);
+}
+modal.querySelector('.x').addEventListener('click', closeWork);
+modal.addEventListener('click', e => { if (e.target === modal) closeWork(); });
+addEventListener('keydown', e => { if (e.key === 'Escape' && current) closeWork(); });
+// Untitled (27 Oct): a click (its title, its button, or the face / hands / feet) switches the candidate to the white silhouette
+// with the halo; another click on it, a click anywhere else on the page or Escape switches it back. Hover only colours the title.
+let lit = false;
+function setLit(on) { lit = on; document.body.classList.toggle('nl', on); updateMusic(); }
+function openPart(p) {
+  if (p === FREE) { setLit(!lit); return; }
+  if (lit) setLit(false);
+  if (p >= 0 && PARTS[p].id) openWork(PARTS[p]);
+}
+addEventListener('keydown', e => { if (e.key === 'Escape' && lit) setLit(false); });
+
+// ---------- mouse: which part is under the cursor ----------
+const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
+let target = -1;
+function pick(e) {
+  const r = renderer.domElement.getBoundingClientRect();
+  mouse.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(mouse, camera);
+  const hit = ray.intersectObject(body)[0];
+  return hit ? partAt(hit.point) : -1;                         // face, hands and feet = A New Land (lights up green, coming soon)
+}
+function setTarget(p) {
+  if (p === target) return;
+  if (target >= 0) { labs[target].d.classList.remove('on'); labs[target].g.classList.remove('on'); applyBtns[target].classList.remove('on'); }
+  target = p;
+  if (p >= 0) { labs[p].d.classList.add('on'); labs[p].g.classList.add('on'); applyBtns[p].classList.add('on');
+    if (MOB) requestAnimationFrame(() => labs[p].d.scrollIntoView({ block:'nearest', behavior:'smooth' })); }
+  renderer.domElement.style.cursor = p >= 0 ? 'pointer' : '';
+}
+renderer.domElement.addEventListener('pointermove', e => { if (e.pointerType !== 'touch') setTarget(pick(e)); });
+renderer.domElement.addEventListener('pointerleave', e => { if (e.pointerType !== 'touch' && !MOB) setTarget(-1); });
+let tapped = -1;
+renderer.domElement.addEventListener('click', e => {
+  const p = pick(e);
+  // touch: first tap shows colour + title, second tap opens the work
+  if (e.pointerType === 'touch' && p !== target) { setTarget(p); return; }
+  openPart(p);
+});
+if (location.hash) { const w = PARTS.find(w => w.id && '#' + w.id === location.hash); if (w) openWork(w); }
+
+// ---------- the scan line: top to bottom in 2.6 s, then a rest; numbers at its end, no names ----------
+const scanEl = document.getElementById('scan'), roEl = scanEl.querySelector('.ro');
+scanEl.classList.toggle('s2', SCANMODE === 2);
+const SCAN_T = 2.6, SCAN_REST = 5.0, yTop = box.max.y + 0.2, yBot = box.min.y - 0.2;
+let scanClock = 1e9, roN = 0;
+function startScan() { if (SCANMODE) scanClock = 0; }
+function placeScan(y) {
+  mat.uniforms.scanY.value = y;
+  if (!SCANMODE || y < yBot || y > yTop) { scanEl.classList.remove('on'); return; }
+  mat.uniforms.scanGlow.value = 1;
+  scanEl.classList.add('on');
+  const p = screen(new THREE.Vector3(ctr.x, y, 1.2)), right = screen(new THREE.Vector3(box.max.x + 0.3, y, 0));
+  scanEl.style.top = (p.y + OY) + 'px';
+  roEl.style.left = (SCANMODE === 2 ? right.x : W - 230) + 'px';
+  if ((roN++ & 7) === 0) roEl.textContent = (Math.random() * 100).toFixed(1).padStart(5) + '%  ' + Math.random().toFixed(3);
+}
+
+// ---------- the AI voice ----------
+if (LOGPOS === '0') logEl.remove();
+const voice = AIVOICE.make(+(Q.get('seed') || (Date.now() % 100000)));
+const LOG_N = 4, logLines = [];
+let typing = null, nextLine = 0;
+function renderLog() {
+  logEl.innerHTML = '';
+  logLines.forEach((ln, k) => {
+    const d = document.createElement('div'), full = voice.text(ln, lang);
+    d.textContent = typing && k === logLines.length - 1 ? full.slice(0, typing.n) : full;
+    d.style.setProperty('--o', (0.25 + 0.75 * (k + LOG_N - logLines.length) / (LOG_N - 1)).toFixed(2));
+    if (k === logLines.length - 1) d.className = 'cur';
+    logEl.appendChild(d);
+  });
+}
+function pushLine(instant) {
+  const ln = voice.next();
+  logLines.push(ln); if (logLines.length > LOG_N) logLines.shift();
+  typing = instant ? null : { n: 0 };
+  if (voice.isScan(ln)) startScan();
+  renderLog();
+}
+onLang.push(() => renderLog());
+
+// ---------- loop ----------
+let last = performance.now();
+// ---------- the CV letters drip off the feet and run down to the bottom of the window ----------
+// Same character grid as the letters on the body (planar mode), so the text keeps flowing at the same speed.
+const DRIP_TXT = CV_TEXT.replace(/\s+/g, ' ');
+const feet = [-1, 1].map(sg => {
+  let x0 = 1e9, x1 = -1e9, z = -1e9;
+  for (let i = 0; i < N; i++) {
+    const x = pos[i * 3], y = pos[i * 3 + 1];
+    if (y < box.min.y + 0.5 && Math.sign(x) === sg) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z = Math.max(z, pos[i * 3 + 2]); }
+  }
+  return { x0, x1, z: z - 0.4, y: box.min.y + 0.05 };
+});
+
+const h01 = (a, b) => { const v = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return v - Math.floor(v); };
+function drawDrip() {
+  dctx.clearRect(0, 0, W, H);
+  if (hov[FREE] > 0.99) return;                              // A New Land hovered: no letters dripping either
+  dctx.globalAlpha = 1 - hov[FREE];
+  if (CVMODE !== 1 && CVMODE !== 2) return;
+  const t = mat.uniforms.time.value, cw = CV_H / 2;
+  const ppu = screen(new THREE.Vector3(0, box.min.y, feet[0].z)).y - screen(new THREE.Vector3(0, box.min.y + 1, feet[0].z)).y;
+  const fpx = Math.max(6, Math.round(CV_H * ppu));
+  dctx.font = fpx + 'px VGA'; dctx.textBaseline = 'top';
+  for (const ft of feet) {
+    const yFeet = ft.y;
+    for (let c = Math.floor(ft.x0 / cw); c <= Math.floor(ft.x1 / cw); c++) {
+      if (h01(c, 7) < 0.25) continue;                       // not every column runs
+      const len = 0.8 + 2.6 * h01(c, 3) + 0.6 * Math.sin(t * 0.35 + c);   // how far this trickle reaches (body units)
+      const x = screen(new THREE.Vector3(c * cw, yFeet, ft.z)).x;
+      // rows of the grid below the feet: row R spans y = -(R + 0.9 t) * CV_H ... one row lower
+      for (let R = Math.ceil(-yFeet / CV_H - 0.9 * t); ; R++) {
+        const y = -(R + 0.9 * t) * CV_H, depth = yFeet - y;
+        const sy = screen(new THREE.Vector3(c * cw, y, ft.z)).y;
+        if (sy > DRIP_END) break;
+        let a = depth < len ? 1 - depth / len : (h01(c, R) < 0.03 ? 0.35 : 0);  // a stream that thins out, then loose drops
+        if (a <= 0.02) continue;
+        a *= 0.75 * Math.min(1, depth / 0.15 + 0.3) / (1 + depth * 0.6);   // darker the lower it gets
+        const rr = ((R % ROWS) + ROWS) % ROWS, cc = ((c % COLS) + COLS) % COLS;
+        dctx.fillStyle = `rgba(200,200,200,${a.toFixed(3)})`;
+        dctx.fillText(DRIP_TXT[(rr * COLS + cc) % DRIP_TXT.length], x, sy);
+      }
+    }
+  }
+}
+
+function draw(dt) {
+  imgs.forEach((im, p) => { if (im.tagName === 'VIDEO' && im.readyState >= 2) actx.drawImage(im, ...cellOf(p), CELL, CELL); });
+  atlas.needsUpdate = true;
+  for (let k = 0; k < 9; k++) {                               // Untitled (slot 0) follows the click, the works follow the pointer
+    const want = k === FREE ? lit : k === target && !lit;
+    hov[k] += ((want ? 1 : 0) - hov[k]) * Math.min(1, dt * 9);
+  }
+  { const u = mat.uniforms.freeHov; u.value += ((target === FREE && !lit ? 1 : 0) - u.value) * Math.min(1, dt * 9); }
+  scanClock += dt;
+  mat.uniforms.time.value += dt;
+  placeScan(scanClock < SCAN_T ? yTop - (yTop - yBot) * (scanClock / SCAN_T) : -99);
+  // after the pass the green fades out over 1.2 s; the AI voice is green while the line is passing
+  const glow = scanClock < SCAN_T ? 1 : Math.max(0, 1 - (scanClock - SCAN_T) / 1.2);
+  mat.uniforms.scanGlow.value = glow;
+  if (scanClock >= SCAN_T && glow > 0) mat.uniforms.scanY.value = yBot;
+  logEl.classList.toggle('green', scanClock < SCAN_T + 0.4);
+  document.body.classList.toggle('scanning', scanClock < SCAN_T + 0.4);
+  if (!REC && LOGPOS !== '0') {
+    nextLine -= dt;
+    if (typing) { typing.n += dt * 45; if (typing.n >= voice.text(logLines.at(-1), lang).length) typing = null; renderLog(); }
+    else if (nextLine <= 0) { pushLine(false); nextLine = 1.2 + Math.random() * 1.2; }
+  }
+  halo();                                                     // the page, plus the light of A New Land when hovered
+  drawDrip();
+}
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (!current) draw(dt);            // the body rests while a work is open
+  requestAnimationFrame(frame);
+}
+if (REC) {
+  if (Q.get('open')) setTimeout(() => openWork(PARTS.find(w => w.id === Q.get('open'))), 0);
+  // stills: fixed hover (?hover=N), scan line at ?sy= (body units), log filled with ?lines= lines, videos at ?vt= s
+  const HV = Q.has('hover') ? +Q.get('hover') : -1;
+  if (HV >= 0) setTarget(HV);
+  if (HV === FREE) setLit(true);                               // stills: ?hover=0 shows Untitled switched on
+  for (let i = 0; i < +(Q.get('lines') || 12); i++) pushLine(true);
+  typing = null; renderLog();
+  const vt = +(Q.get('vt') || 3);
+  await Promise.all(imgs.filter(im => im.tagName === 'VIDEO').map(v => new Promise(r => { v.pause(); v.onseeked = r; v.currentTime = Math.min(vt, v.duration - .1); })));
+  if (PRINT) {
+    // one big picture (pw x ph px) of the body alone, rendered tile by tile with a view offset; black background
+    document.body.classList.add('print');
+    const PW = +Q.get('pw'), PH = +Q.get('ph'), T = +(Q.get('tile') || 2048), cols = Math.ceil(PW / T);
+    const visH = sz.y / 0.94;                                  // the body fills 94 % of the height
+    scene.background = new THREE.Color(Q.get('bg') ? '#' + Q.get('bg') : '#000');
+    const pdist = Math.max(visH, sz.x * 1.2 * PH / PW) / 2 / Math.tan(13 * Math.PI / 180);
+    camera.aspect = PW / PH; camera.position.set(ctr.x, ctr.y, ctr.z + pdist); camera.lookAt(ctr.x, ctr.y, ctr.z);
+    renderer.setPixelRatio(1); renderer.setSize(T, T); dripCv.width = dripCv.height = 1;
+    renderer.domElement.style.top = '0px';
+    hov.fill(1);
+    window.__rec = i => {
+      camera.setViewOffset(PW, PH, (i % cols) * T, Math.floor(i / cols) * T, T, T);
+      camera.updateProjectionMatrix();
+      renderer.render(scene, camera);
+    };
+    window.__ready = true;
+  } else
+  window.__rec = (i = 0) => {
+    hov.fill(0); if (HV >= 0) hov[HV] = 1;
+    if (Q.has('fh')) { setTarget(FREE); mat.uniforms.freeHov.value = 1; }   // stills: Untitled hovered (not clicked)
+    if (Q.has('t')) mat.uniforms.time.value = +Q.get("t") + i / 30;   // stills / clips of the halo
+    scanClock = 1e9; draw(0);
+    if (Q.has('sy')) { placeScan(+Q.get('sy')); halo(); }
+  };
+  if (Q.get('open')) setTimeout(() => { window.__ready = true; }, 5000); else if (!PRINT)
+  window.__ready = true;
+} else requestAnimationFrame(frame);
+addEventListener('pointerdown', () => imgs.forEach(im => im.play && im.play().catch(() => {})), { once: true });
+</script>
+</body>
+</html>

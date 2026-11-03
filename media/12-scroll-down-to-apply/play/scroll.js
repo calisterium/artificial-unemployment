@@ -112,8 +112,6 @@ const GW = 176; let GH = 235;
 const ecv = document.createElement('canvas'), ectx = ecv.getContext('2d', { willReadFrequently: true });
 let dens = null, rowCdf = null, cellCdf = null, colR = null, colG = null, colB = null;
 const eye = { lx: 0, ly: 0, tx: 0, ty: 0, open: 1, dil: .4, flash: 0, blinkAt: 2, happy: 0, happyUntil: 0, boing: 0, dizzy: 0 };
-// the ending, at the very bottom of the page: the eyes close, then a sentence, then the verdict (all made of particles)
-const end = { t: 0, close: 0, eyes: 1, a: 0, b: 0 };
 const IRIS = [205, 228, 140];   // a pale yellow-green, close to the phosphor green
 const LILAC = [184, 164, 240];  // the soft accent (no red anywhere: nothing should read as alarm)
 const mix = (c, d, k) => `rgb(${c.map((v, i) => Math.round(v + (d[i] - v) * k)).join(',')})`;
@@ -125,8 +123,8 @@ function drawEyes(t) {
   ectx.setTransform(sx, 0, 0, sy, 0, 0);
   // round eyes that slowly breathe between a circle and an oval (never pointed)
   const re = Math.min(W * .215, H * .3), cy = H * .5 + Math.sin(t * .4) * H * .01;
-  ectx.globalAlpha = end.eyes;
-  if (end.eyes > .01) for (const side of [-1, 1]) {
+  ectx.globalAlpha = 1;
+  for (const side of [-1, 1]) {
     const cx = W / 2 + side * W * .245;
     const rx = re * (1 - .06 * (.5 + .5 * Math.sin(t * .21 + side))), ry = re * (.84 + .16 * (.5 + .5 * Math.sin(t * .17 + side * 2)));
     const ryo = Math.max(ry * eye.open, re * .015);   // blink / close: the ellipse flattens to a line with round ends
@@ -161,27 +159,13 @@ function drawEyes(t) {
     shape(); ectx.strokeStyle = 'rgb(196,243,223)'; ectx.lineWidth = re * .06; ectx.stroke();
     // happy eyes: a soft arch, like ^ ^
     if (eye.happy > .01) {
-      ectx.save(); ectx.globalAlpha = end.eyes * eye.happy; ectx.lineCap = 'round';
+      ectx.save(); ectx.globalAlpha = eye.happy; ectx.lineCap = 'round';
       ectx.strokeStyle = 'rgb(225,245,200)'; ectx.lineWidth = re * .16;
       ectx.beginPath(); ectx.arc(cx, cy + re * .45, re * .72, Math.PI * 1.18, Math.PI * 1.82); ectx.stroke();
       ectx.restore();
     }
   }
   ectx.globalAlpha = 1;
-  // the ending sentences, in the terminal lettering
-  const say = (lines, alpha, colour, maxW, dy) => {
-    if (alpha <= .01) return;
-    ectx.globalAlpha = alpha; ectx.fillStyle = colour; ectx.textAlign = 'center'; ectx.textBaseline = 'middle';
-    let size = 100; ectx.font = `${size}px VT323`;
-    const widest = Math.max(...lines.map(l => ectx.measureText(l).width));
-    size = Math.min(size * maxW * W / widest, H * .7 / lines.length / 1.05);
-    ectx.font = `${size}px VT323`;
-    lines.forEach((l, i) => ectx.fillText(l, W / 2, H / 2 + dy * H + (i - (lines.length - 1) / 2) * size * 1.05));
-    ectx.globalAlpha = 1;
-  };
-  say(['I see that you', 'don’t like', 'this position.'], end.a, 'rgb(225,250,235)', .9, 0);
-  say(['FIT:'], end.b, 'rgb(225,250,235)', .5, -.17);
-  say(['0%'], end.b, 'rgb(184,164,240)', .62, .12);
   // brightness -> density, colour; plus a faint moving interference pattern so particles fill the whole screen
   const img = ectx.getImageData(0, 0, GW, GH).data;
   const n = GW * GH;
@@ -304,11 +288,7 @@ function frame(now) {
   const idle = now - Math.max(pointerTime, lastScrollTime);
   eye.dil += ((idle > 4000 ? .9 : .45) - eye.dil) * Math.min(1, dt * 2);   // big soft pupils when you stop
   eye.flash = Math.max(0, eye.flash - dt * 1.6);
-  // ending: at the bottom the clock runs forward, anywhere else it rewinds fast
-  end.t = s >= .992 ? end.t + dt : Math.max(0, end.t - dt * 4);
-  end.close = seg(end.t, .2, 1.1); end.eyes = 1 - seg(end.t, 1.3, 2.0);
-  end.a = seg(end.t, 1.6, 2.4) * (1 - seg(end.t, 6.2, 6.9)); end.b = seg(end.t, 6.9, 7.7);
-  eye.open *= 1 - end.close;
+  // (28 Oct 2026: the ending at the bottom of the page was removed)
   const T0 = performance.now();
   drawEyes(t);
   const T1 = performance.now();
@@ -504,7 +484,7 @@ new ResizeObserver(() => {
 fontsLoaded.then(() => {
   glInit(); resize(); lastSY = scrollY; laidOutH = document.documentElement.scrollHeight;
   if (!REC) { requestAnimationFrame(frame); return; }
-  // the video: 2 s at the top, 13 s down to the bottom, then the ending (eyes close, the sentence, FIT: 0%); 24 s = 720 frames
+  // the video: 2 s at the top, 13 s down to the bottom, then the eyes at the bottom; 24 s = 720 frames
   // ?rec=radar: the grid video, the cover standing still while the radar turns (4 s = one turn, 120 frames, seamless)
   const radar = Q.get('rec') === 'radar';
   const sOf = tt => radar || tt < 2 ? 0 : tt > 15 ? 1 : smooth((tt - 2) / 13);

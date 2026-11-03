@@ -1,4 +1,4 @@
-// The 7 works of the intermediate delivery: credits in English and Spanish, and what the popup shows.
+// The 8 works of the intermediate delivery: credits in English and Spanish, and what the popup shows.
 const M = 'media/';
 const PH_ES = Array(200).fill('TEXTO').join(' ');
 const PH_EN = Array(200).fill('TEXT').join(' ');
@@ -53,11 +53,18 @@ const WORKS = [
     date:{ en:'22 October 2026', es:'22 de octubre de 2026' },
     medium:{ en:'web page in HTML and JavaScript: a job posting of more than a thousand lines whose letters are redrawn on a canvas and a field of up to 45,000 particles in WebGL; scroll, pointer and click; 3:4, silent',
              es:'Página web en HTML y JavaScript: una vacante de más de mil líneas cuyas letras se redibujan en un canvas y un campo de hasta 45,000 partículas en WebGL; scroll, puntero y clic; 3:4, sin sonido' } },
+  { id:'cc', text:{ en:'AI READS ME BUT CAN’T SEE ME', es:'LA IA ME LEE PERO NO ME PUEDE VER' }, title:'The Corporate Cali', ratio:1, color:'#9a9a9a',
+    thumb:M+'the-corporate-cali/the-corporate-cali_small.mp4', poster:M+'the-corporate-cali/poster_small.jpg',
+    piece:{ iframe:M+'the-corporate-cali/play/the-corporate-cali.html', bg:'#000' },
+    kind:{ en:'zoomable PDF', es:'PDF con zoom' },
+    date:{ en:'27 October 2026', es:'27 de octubre de 2026' },
+    medium:{ en:'Typographic self-portrait made with the text of my CV after it was extracted by an AI ATS, ready to be evaluated by an algorithm for a job',
+             es:'Autorretrato tipográfico hecho con el texto de mi currículum después de haber sido extraído por un ATS de IA, listo para ser evaluado por un algoritmo para un puesto de trabajo' } },
 ];
 
 const L = {
   en:{ title:'title', artist:'artist', series:'series', date:'date', medium:'medium', close:'close',
-       works:'7 works', text:PH_EN, textTitle:'About the work', about:'Twenty-five short loops, games and pages made in conversation with an AI model. Intermediate delivery: 7 works.' },
+       works:'8 works', text:PH_EN, textTitle:'About the work', about:'Twenty-five short loops, games and pages made in conversation with an AI model. Intermediate delivery: 8 works.' },
   es:{ title:'título', artist:'artista', series:'serie', date:'fecha', medium:'técnica', close:'cerrar',
-       works:'7 obras', text:PH_ES, textTitle:'Sobre la obra', about:'Veinticinco loops, juegos y páginas cortas hechas en conversación con un modelo de IA. Entrega intermedia: 7 obras.' },
+       works:'8 obras', text:PH_ES, textTitle:'Sobre la obra', about:'Veinticinco loops, juegos y páginas cortas hechas en conversación con un modelo de IA. Entrega intermedia: 8 obras.' },
 };
