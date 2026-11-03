@@ -93,7 +93,12 @@
                  'arm_long', 'arm_middle', 'arm_small', 'arm_supersmall'];
   const IMG = {};
   function load(base) {
-    const imgs = NAMES.map(n => new Promise((ok, no) => { const i = new Image(); i.onload = () => { IMG[n] = i; ok(); }; i.onerror = () => no(new Error('missing ' + n)); i.src = (base || 'img/') + n + (root.MC_IMG_EXT || '.png'); }));
+    // 3 Nov 2026: on phones/tablets (root.MC_HALF) the five whole-sketch pictures come from img_half/ (half size, 4x fewer pixels
+    // to decode); whole() draws them at the sketch size, so nothing else changes
+    const HALF = ['tv', 'mass_green', 'art_top', 'mass_purple', 'art_top_inv'];
+    const imgs = NAMES.map(n => new Promise((ok, no) => { const i = new Image(); i.onload = () => { IMG[n] = i; ok(); }; i.onerror = () => no(new Error('missing ' + n));
+      const dir = (root.MC_HALF && HALF.includes(n)) ? (base || 'img/').replace(/img\/$/, 'img_half/') : (base || 'img/');
+      i.src = dir + n + (root.MC_IMG_EXT || '.png'); }));
     // a font that fails or is slow must not stop the game: wait for it 4 seconds at most
     const soon = p => Promise.race([Promise.resolve(p).catch(() => {}), new Promise(ok => setTimeout(ok, 4000))]);
     const fonts = document.fonts ? [soon(document.fonts.load('100px ' + CFG.fontHand)), soon(document.fonts.load('100px ' + CFG.fontScreen))] : [];
@@ -112,11 +117,11 @@
   const fitted = {};
   function whole(ctx, name) {
     const m = ctx.getTransform ? ctx.getTransform() : null, k = m ? m.a : 1;
-    if (!(k > 0 && k < 0.9) || m.d !== k || m.b || m.c || m.e || m.f) { ctx.drawImage(IMG[name], 0, 0); return; }
+    if (!(k > 0 && k < 0.9) || m.d !== k || m.b || m.c || m.e || m.f) { ctx.drawImage(IMG[name], 0, 0, W, H); return; }
     const f = fitted[name] || (fitted[name] = { cv: document.createElement('canvas'), k: 0 });
     if (f.k !== k) {                                        // first use, or the window has changed size
       f.cv.width = Math.ceil(W * k); f.cv.height = Math.ceil(H * k); f.k = k;
-      const t = f.cv.getContext('2d'); t.setTransform(k, 0, 0, k, 0, 0); t.drawImage(IMG[name], 0, 0);
+      const t = f.cv.getContext('2d'); t.setTransform(k, 0, 0, k, 0, 0); t.drawImage(IMG[name], 0, 0, W, H);
     }
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(f.cv, 0, 0); ctx.restore();
   }

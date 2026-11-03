@@ -42,8 +42,11 @@
 </div>
 </div>
 <script src="hand_data.js"></script>
-<script>window.MC_IMG_EXT = '.webp';</script>
-<script src="mc.js"></script>
+<script>window.MC_IMG_EXT = '.webp';
+// 3 Nov 2026 (slow on iPad): touch devices get the half-size whole-sketch pictures and draw at 1x, not at the Retina ratio
+window.MC_TOUCH = matchMedia('(pointer: coarse)').matches || Math.min(screen.width, screen.height) < 900;
+window.MC_HALF = window.MC_TOUCH;</script>
+<script src="mc.js?v=20261103a"></script>
 <script src="game.js"></script>
 <script>
 (function () {
@@ -84,7 +87,7 @@
   // ---- canvas size: as many pixels as it shows on screen
   let scale = 0.5;
   function fit() {
-    const r = cv.getBoundingClientRect(), h = Math.min(MC.H, Math.max(600, Math.round(r.height * (window.devicePixelRatio || 1))));
+    const r = cv.getBoundingClientRect(), h = Math.min(MC.H, Math.max(600, Math.round(r.height * (window.MC_TOUCH ? 1 : (window.devicePixelRatio || 1)))));
     scale = h / MC.H; cv.height = h; cv.width = Math.round(MC.W * scale); shown = null;
     // a moment later, when the size has settled, the big pictures are made ready for it (also the purple ones, first
     // needed at the first fault), so that no frame of the game has to wait for them

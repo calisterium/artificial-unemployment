@@ -68,7 +68,7 @@
   // --- LIVE (27 Oct, Carlos): the photo Night.png, and over it every letter of the CV drawn each frame, each one ONE flat colour
   // that drifts very slowly toward the photo's own colour there (almost vanishing into it) and back to its brighter colour.
   // Data: cells_<lang>.js (grid, text, raw = photo colour, tone = letter colour; cv2026/build.py) + night.jpg. ?zoom = old picture.
-  const V = '20261028x';
+  const V = '20261103a';
   const cellsOK = !Q.has('zoom') && await new Promise(ok => { const sc = document.createElement('script');
     sc.src = `${IMG_DIR}cells_${LANG}.js?v=${V}`; sc.onload = () => ok(true); sc.onerror = () => ok(false); document.head.appendChild(sc); });
   if (cellsOK) {
@@ -152,7 +152,7 @@
   }
 
   // --- what is shown: the square picture of the CV in the chosen language
-  const img = new Image(); img.src = `${IMG_DIR}cc_${LANG}.jpg?v=20261028o`; await img.decode();
+  const img = new Image(); img.src = `${IMG_DIR}cc_${LANG}.jpg?v=20261103a`; await img.decode();
   const IW = img.naturalWidth;
 
   // draws the region of the picture seen at zoom z around (cx, cy) into a size x size canvas

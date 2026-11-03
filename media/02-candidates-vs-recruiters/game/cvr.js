@@ -57,8 +57,11 @@
   LOOP.length = LOOP.gaps.reduce((a, b) => a + b, 0);
 
   // ---------- assets ----------
+  // 3 Nov 2026: every picture also exists as WebP (same pixels, 2.5x lighter): try it first, fall back to the PNG/JPG
   function loadImage(src) {
-    return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; });
+    const webp = src.replace(/\.(png|jpg)$/, '.webp');
+    return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im);
+      im.onerror = () => { if (im.src.endsWith('.webp')) { im.src = src; } else rej(new Error(src)); }; im.src = webp; });
   }
   async function loadAssets(base, bgName) {
     const man = window.CVR_MANIFEST;
