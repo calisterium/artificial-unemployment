@@ -25,6 +25,7 @@
   body.render #bar, body.render #hint { display:none; }
   /* 27 Oct (Carlos): no zoom any more: the whole picture, no bar, no hint */
   body.nozoom #bar, body.nozoom #hint.ready { display:none; }
+  html:not(.zoom) #bar { display:none; }                /* 3 Nov 2026: the bar showed for ~2 s before the live data arrived */
   body.nozoom canvas { cursor:default; }
   body.nozoom #wrap { inset:0; }
   body.render #wrap { inset:0; }
@@ -37,6 +38,7 @@
     #hint { font-size:16px; padding:10px 14px; }
   }
 </style>
+<script>if (new URLSearchParams(location.search).has('zoom')) document.documentElement.classList.add('zoom');</script>
 </head>
 <body>
 <div id="wrap"><canvas id="c"></canvas><div id="hint">LOADING...</div></div>
