@@ -20,7 +20,7 @@ const WORKS = [
              es:'Juego de navegador en JavaScript sobre un canvas HTML5 (Canvas 2D, sin librerías), hecho a partir de un dibujo escaneado en pluma, marcador negro y lápices de color' } },
   { id:'03', text:{ en:'MATCH EXACTLY 100%!', es:'¡EMBONA EXACTAMENTE AL 100%!' }, title:'Growing to Fit', ratio:1080/2160, color:'#ffb3dc',
     thumb:M+'03-growing-to-fit/growing-to-fit_small.mp4', poster:M+'03-growing-to-fit/poster_small.jpg',
-    piece:{ video:M+'03-growing-to-fit/growing-to-fit_1080.mp4', sound:true, bg:'#000' },
+    piece:{ video:M+'03-growing-to-fit/growing-to-fit_720.mp4', sound:true, bg:'#000' },   // 720x1440 copy (3 Nov 2026): the 1080 took too long to load
     kind:{ en:'3D animation, sound', es:'animación 3D, sonido' },
     date:{ en:'29 September 2026', es:'29 de septiembre de 2026' },
     medium:{ en:'3D animation made in JavaScript with three.js (r170, WebGL), rendered to video, with sound; 34.4-second loop, 1080×2160 (vertical)',

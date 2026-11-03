@@ -256,7 +256,7 @@
 <div id="labels"><svg id="lines"></svg><div id="list"></div></div>
 <div id="log"></div>
 <!-- works, phrases and credits come from the intermediate delivery site -->
-<script src="data.js"></script>
+<script src="data.js?v=20261103b"></script>
 <script src="body_data.js"></script>
 <script src="cv_text.js"></script>
 <script src="ai_voice.js"></script>
@@ -463,7 +463,7 @@ const POSTER = { '01':'01-shrinking-to-fit', '02':'02-candidates-vs-recruiters',
 const loadImg = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error(src)); i.src = src; });
 function plainGray() { const c = document.createElement('canvas'); c.width = c.height = 16; const g = c.getContext('2d'); g.fillStyle = '#7a7a7a'; g.fillRect(0, 0, 16, 16); return c; }
 // a better moment than the first frame where a full-size video exists (seconds)
-const PRINT_FRAME = { '03':['03-growing-to-fit/growing-to-fit_1080.mp4', +(Q.get('t03') || 24)] };
+const PRINT_FRAME = { '03':['03-growing-to-fit/growing-to-fit_720.mp4', +(Q.get('t03') || 24)] };   // (720 copy since 3 Nov)
 function videoFrame([src, t]) {
   return new Promise((res, rej) => {
     const v = document.createElement('video'); v.muted = true; v.preload = 'auto';
@@ -910,7 +910,9 @@ addEventListener('resize', resize);
 resize();
 // Shrinking waited ~3 s buffering before it moved (Carlos, 3 Nov): the video works are fetched quietly once the page is up, so
 // the popup plays from the browser's media cache (01 whole, 2 MB; Growing only its metadata, it is 9 MB)
-setTimeout(() => { PARTS.forEach(w => { if (w.id && w.piece && w.piece.video) { const v = document.createElement('video'); v.preload = w.id === '01' ? 'auto' : 'metadata'; v.muted = true; v.src = SITE + w.piece.video; } }); }, 2500);
+// (3 Nov, later: Growing is now a 720p copy of ~4 MB and is fetched whole too, 4 s after Shrinking, one after the other)
+setTimeout(() => { const vs = PARTS.filter(w => w.id && w.piece && w.piece.video).sort((a, b) => a.id === '01' ? -1 : 1);
+  vs.forEach((w, i) => setTimeout(() => { const v = document.createElement('video'); v.preload = 'auto'; v.muted = true; v.src = SITE + w.piece.video; }, i * 4000)); }, 2500);
 
 // ---------- popup (same as the intermediate delivery site) ----------
 const modal = document.createElement('div');

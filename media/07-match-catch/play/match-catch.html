@@ -7,6 +7,11 @@
 <link rel="stylesheet" href="fonts.css">
 <style>
   html, body { touch-action:manipulation; }
+  /* loading screen (Carlos, 3 Nov 2026): the pictures take a moment on tablets */
+  #loading { position:fixed; inset:0; z-index:9; display:flex; align-items:center; justify-content:center; background:#000;
+    color:#fff; font:48px/1 'VT323', monospace; letter-spacing:.06em; transition:opacity .4s; pointer-events:none; }
+  #loading.gone { opacity:0; }
+  @keyframes blink { 50% { opacity:.25; } } #loading span { animation:blink 1.1s steps(2) infinite; }
   body { background:#c0c0c0; color:#000; font-family:"Times New Roman",Times,serif; margin:12px; }
   #wrap { display:flex; gap:16px; align-items:flex-start; }
   #out { height:calc(100vh - 70px); width:auto; aspect-ratio:2690 / 3626; display:block; border:2px inset #fff; background:#6e9d79; touch-action:manipulation; user-select:none; -webkit-user-select:none; }
@@ -30,6 +35,7 @@
 </script>
 </head>
 <body>
+<div id="loading"><span>LOADING...</span></div>
 <div id="head"><b>CALI STERIUM</b> &middot; <i>work 07 (MATCH CATCH)</i> &middot; playable game with tuning bar<hr></div>
 <div id="wrap">
 <canvas id="out" width="1345" height="1813"></canvas>
@@ -163,6 +169,7 @@ window.MC_HALF = window.MC_TOUCH;</script>
   MCG.load().then(() => {
     if (q.get('auto') === '1') { MCG.state().auto = true; $('auto').checked = true; }
     fit(); document.title = 'ready'; last = performance.now(); requestAnimationFrame(frame);
+    requestAnimationFrame(() => { const l = document.getElementById('loading'); l.classList.add('gone'); setTimeout(() => l.remove(), 500); });
   }).catch(fail);
   window.MCGAME = { fit, repaint };
 })();
