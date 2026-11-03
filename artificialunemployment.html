@@ -28,7 +28,7 @@
   .about h2 { font:500 22px/1.3 "IBM Plex Mono", monospace; letter-spacing:.05em; text-transform:uppercase; color:#ececec; margin:0 0 18px; }
   .about p { margin:0 0 14px; } .about p:last-child { margin:0; }
   .about a { color:#5b8cff; text-decoration:none; } .about a:hover { color:#9db8ff; text-decoration:underline; }
-  body.mob .about .ap { box-sizing:border-box; width:100vw; height:100dvh; max-height:none; border:0; background:#050505; padding:64px 20px 40px 16px; }
+  body.mob .about .ap { box-sizing:border-box; width:100vw; height:100dvh; max-height:none; border:0; background:#050505; padding:84px 20px 40px 16px; }
   body.mob .about h2, body.mob .about .ab { max-width:720px; margin-left:auto; margin-right:auto; }   /* tablets: no 100-character lines */
   body.mob .about .ap { font-size:clamp(13.5px, 1.4vw, 22px); }
   #head .s { display:block; color:#8a8a8a; text-transform:uppercase; }
@@ -210,8 +210,10 @@
   body.pop-c .head2 { grid-column:2; grid-row:1; position:static; display:block; background:transparent; border:0; border-left:1px solid #262626; padding:26px 22px 14px; }
   body.pop-c .head2 h2 { font:500 22px/1.3 "IBM Plex Mono", monospace; letter-spacing:.05em; color:#ececec; padding:0; }
   body.pop-c .pn { display:block; margin:0 0 6px; }
-  body.pop-c .x { position:absolute; top:10px; right:4px; padding:8px 14px; }
-  body.pop-c .stage { grid-column:1; grid-row:1 / 3; border:0; align-items:center; }
+  /* [ X ] (Carlos, 3 Nov): visitors spend seconds per work and must find it at once: bigger, boxed, white; double on touch */
+  body.pop-c .x { position:absolute; top:12px; right:12px; padding:10px 16px; font-size:22px; color:#f0f0f0; border:1px solid #7a7a7a; background:rgba(0,0,0,.6); }
+  body.pop-c .x:hover { color:#5b8cff; border-color:#5b8cff; }
+  body.pop-c .stage { grid-column:1; grid-row:1 / 3; border:0; align-items:center; background:#050505; }   /* opaque: no blurred page under the piece (3 Nov) */
   body.pop-c .head2, body.pop-c .info { background:rgba(5,5,5,.75) !important; }
   body.pop-c .info { grid-column:2; grid-row:2; border-left:1px solid #262626; overflow:auto; padding:0 0 20px; }
   body.pop-c .ced { font-size:13.5px; line-height:1.55; }
@@ -221,11 +223,11 @@
   /* phones/tablets: an opaque panel and no backdrop blur (Chrome drew the page's buttons and titles through the blurred panel, 3 Nov 2026) */
   body.mob .modal { backdrop-filter:none !important; -webkit-backdrop-filter:none !important; background:rgba(0,0,0,.6); }   /* !important: the pop- rule below is later and as specific */
   body.mob.pop-c .panel { display:flex; flex-direction:column; overflow:auto; width:100vw; height:100dvh; border:0; background:#050505; }
-  body.mob.pop-c .stage { order:1; flex:none; padding-top:44px; }   /* room for the fixed [ X ] */
+  body.mob.pop-c .stage { order:1; flex:none; padding-top:72px; }   /* room for the fixed [ X ] (58 px high) */
   body.mob.pop-c .head2 { order:2; position:static; display:block; border-left:0; border-top:1px solid #262626; padding:18px 16px 8px; }
   body.mob.pop-c .info { order:3; flex:none; border-left:0; overflow:visible; }
   body.mob.pop-c .ced th { padding-left:16px; } body.mob.pop-c .ced td { padding-left:16px; padding-right:16px; }
-  body.mob.pop-c .x { position:fixed; top:8px; right:8px; z-index:50; padding:8px 10px; background:rgba(0,0,0,.65); }
+  body.mob.pop-c .x { position:fixed; top:10px; right:10px; z-index:50; padding:12px 18px; font-size:32px; background:#000; border:1px solid #9a9a9a; }
   @media (max-width:900px) {
     body.pop-c .panel { display:block; overflow:auto; border:0; }
     body.pop-c .head2 { position:sticky; top:0; z-index:3; border-left:0; border-bottom:1px solid #262626; padding:16px 16px 12px; }
@@ -906,6 +908,9 @@ document.querySelectorAll('[data-lang]').forEach(a => a.addEventListener('click'
 setLang(lang);
 addEventListener('resize', resize);
 resize();
+// Shrinking waited ~3 s buffering before it moved (Carlos, 3 Nov): the video works are fetched quietly once the page is up, so
+// the popup plays from the browser's media cache (01 whole, 2 MB; Growing only its metadata, it is 9 MB)
+setTimeout(() => { PARTS.forEach(w => { if (w.id && w.piece && w.piece.video) { const v = document.createElement('video'); v.preload = w.id === '01' ? 'auto' : 'metadata'; v.muted = true; v.src = SITE + w.piece.video; } }); }, 2500);
 
 // ---------- popup (same as the intermediate delivery site) ----------
 const modal = document.createElement('div');
@@ -942,7 +947,7 @@ function fit() {
   // C: the caption column has its own width (clamp in CSS); in narrow windows (<= 900 px) the panel is stacked (display:block)
   const stacked = MOB || getComputedStyle(panel).display !== 'grid';
   if (POP === 'c' && !stacked) { PW = panel.clientWidth - head2.offsetWidth; PH = panel.clientHeight; }
-  if (POP === 'c' && stacked) { PW = panel.clientWidth; PH = panel.clientHeight * 0.75 - 44; }
+  if (POP === 'c' && stacked) { PW = panel.clientWidth; PH = panel.clientHeight * 0.75 - 72; }
   let w = PW, h = PW / r;
   if (h > PH) { h = PH; w = PH * r; }
   piece.style.width = Math.floor(w) + 'px';
@@ -960,9 +965,9 @@ function openWork(w) {
   const pc = w.piece;
   piece.style.background = pc.video ? '#000' : (pc.bg || '#000');   // a video covers its box: no light background that could peep out
   piece.classList.toggle('crop-bottom', w.id === '01');
-  stage.style.background = POP ? 'transparent' : piece.style.background;   // dark styles: only the piece has its colour
+  stage.style.background = POP ? '' : piece.style.background;   // dark styles: the stage keeps its CSS (opaque since 3 Nov)
   piece.innerHTML = pc.video
-    ? `<video src="${SITE + pc.video}" autoplay loop playsinline ${pc.sound ? '' : 'muted'}></video>`
+    ? `<video src="${SITE + pc.video}" autoplay loop playsinline preload="auto" ${pc.sound ? '' : 'muted'}></video>`
     : `<iframe src="${pieceSrc(w)}" allow="autoplay; fullscreen" title="${titleOf(w)}"></iframe>`;   // ?v: skip old cached copies
   if (w.id === '12') scrollHint();                              // Holding the Gaze: a nudge toward its scrollbar
   const fr = piece.querySelector('iframe');                     // Escape pressed inside a game (same origin) closes the popup too

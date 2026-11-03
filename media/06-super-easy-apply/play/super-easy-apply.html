@@ -18,6 +18,7 @@
   #bar label { white-space:nowrap; }
   #clock { font:13px monospace; min-width:260px; color:#fff; }
   #bar.hidden { display:none; }
+  html:not(.bar) #bar { display:none; }                  /* 3 Nov 2026: it flashed for a second before the module removed it */
   /* loading screen: the first frame of the piece (the live page starts on the same picture), until the first live frame */
   #loading { position:fixed; inset:0; margin:auto; width:min(100vw, 100vh); height:min(100vw, 100vh); z-index:4;
     background:#05000f url(loading.jpg) center / cover no-repeat; transition:opacity .5s; pointer-events:none; }
@@ -28,6 +29,7 @@
   @keyframes blink { to { visibility:hidden; } }
   #loading.gone { opacity:0; }
 </style>
+<script>if (new URLSearchParams(location.search).has('bar')) document.documentElement.classList.add('bar');</script>
 <!-- defer: the loading picture paints at once; these still run before the module below (document order) -->
 <script defer src="vhs.js"></script>
 <script defer src="models/hand_mesh.js"></script>
