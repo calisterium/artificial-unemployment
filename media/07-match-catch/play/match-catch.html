@@ -2,9 +2,11 @@
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MATCH CATCH</title>
 <link rel="stylesheet" href="fonts.css">
 <style>
+  html, body { touch-action:manipulation; }
   body { background:#c0c0c0; color:#000; font-family:"Times New Roman",Times,serif; margin:12px; }
   #wrap { display:flex; gap:16px; align-items:flex-start; }
   #out { height:calc(100vh - 70px); width:auto; aspect-ratio:2690 / 3626; display:block; border:2px inset #fff; background:#6e9d79; touch-action:manipulation; user-select:none; -webkit-user-select:none; }
@@ -22,6 +24,10 @@
   body.bare #out { height:min(100vh, 100vw * 3626 / 2690); margin:0 auto; border:0; }   /* whole picture in view, never stretched, also in a narrow window */
   body.bare #ui, body.bare #head { display:none; }
 </style>
+<script>
+// iOS Safari zooms in on a double tap (Carlos, 3 Nov 2026: unplayable on iPad): a second tap within 350 ms is swallowed
+(function () { let last = 0; document.addEventListener('touchend', e => { const t = Date.now(); if (t - last < 350) e.preventDefault(); last = t; }, { passive: false }); })();
+</script>
 </head>
 <body>
 <div id="head"><b>CALI STERIUM</b> &middot; <i>work 07 (MATCH CATCH)</i> &middot; playable game with tuning bar<hr></div>

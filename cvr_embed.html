@@ -5,8 +5,13 @@
 <title>Candidates VS Recruiters</title>
 <style>
   html, body { margin:0; height:100%; background:#fff; overflow:hidden; }
+  html, body { touch-action:manipulation; }
   canvas { display:block; width:100%; height:100%; touch-action:manipulation; }
 </style>
+<script>
+// iOS Safari zooms in on a double tap (Carlos, 3 Nov 2026: unplayable on iPad): a second tap within 350 ms is swallowed
+(function () { let last = 0; document.addEventListener('touchend', e => { const t = Date.now(); if (t - last < 350) e.preventDefault(); last = t; }, { passive: false }); })();
+</script>
 </head>
 <body>
 <!-- the game exactly as in essay.html section 02, only without the page around it -->

@@ -5,6 +5,7 @@
 <title>Super Easy Apply</title>
 <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
 <style>
+  html, body { touch-action:manipulation; }   /* no double-tap zoom on iOS (3 Nov 2026) */
   html, body { margin:0; height:100%; background:#05000f; overflow:hidden; }
   #stage { position:absolute; left:0; top:0; width:1440px; height:1440px; transform-origin:0 0; cursor:none; }
   #stage.review { cursor:default; }

@@ -11,7 +11,7 @@
   /* Three typefaces in the whole page: IBM VGA 8x16 (machine: name, numbers, AI voice), IBM Plex Mono (work titles and
      phrases, the popup), IBM Plex Sans Condensed (the question). Inter Tight was dropped with the old light popup. */
   @font-face { font-family:"VGA"; src:url("fonts/WebPlus_IBM_VGA_8x16.woff") format("woff"); }
-  html, body { margin:0; height:100%; background:#000; overflow:hidden; }
+  html, body { margin:0; height:100%; background:#000; overflow:hidden; touch-action:manipulation; }
   canvas { display:block; position:absolute; left:0; top:0; }
   .vga { font-family:"VGA", monospace; -webkit-font-smoothing:none; }
 
@@ -169,6 +169,9 @@
   @keyframes hintIn { from { opacity:0; transform:translateX(-12px); } }
   .piece video, .piece iframe { display:block; width:100%; height:100%; border:0; object-fit:contain; }
   .piece video { object-fit:cover; }                        /* a rounding strip of the background showed as a white line (Carlos, 3 Nov) */
+  /* Shrinking (01): the last 14 rows of the video itself are the light floor under the conveyor and read as a white line
+     (Carlos, 3 Nov, on every device): the video is drawn 1.6 % taller than its box, anchored at the top, so those rows are cut */
+  .piece.crop-bottom video { height:101.6%; object-position:top; }
   .vsnd { text-align:right; padding:14px 22px 0; } .vsnd a { font-family:"IBM Plex Mono", monospace; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:#3dbfa8; text-decoration:none; }
   .vsnd a:hover { color:#7fdccb; } body.mob.pop-c .vsnd { padding:14px 16px 0; }
   .ced { border-collapse:collapse; width:100%; font-size:12px; }
@@ -235,6 +238,10 @@
 </style>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+</script>
+<script>
+// iOS Safari zooms in on a double tap (Carlos, 3 Nov 2026: unplayable on iPad): a second tap within 350 ms is swallowed
+(function () { let last = 0; document.addEventListener('touchend', e => { const t = Date.now(); if (t - last < 350) e.preventDefault(); last = t; }, { passive: false }); })();
 </script>
 </head>
 <body>
@@ -951,7 +958,8 @@ function openWork(w) {
   current = w;
   fillInfo(w);
   const pc = w.piece;
-  piece.style.background = pc.bg || '#000';
+  piece.style.background = pc.video ? '#000' : (pc.bg || '#000');   // a video covers its box: no light background that could peep out
+  piece.classList.toggle('crop-bottom', w.id === '01');
   stage.style.background = POP ? 'transparent' : piece.style.background;   // dark styles: only the piece has its colour
   piece.innerHTML = pc.video
     ? `<video src="${SITE + pc.video}" autoplay loop playsinline ${pc.sound ? '' : 'muted'}></video>`
