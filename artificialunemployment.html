@@ -106,8 +106,9 @@
   body.mob { overflow-y:auto; height:auto; }
   html.mob { overflow-y:auto; height:auto; scrollbar-gutter:stable; }
   body.mob #head { left:16px; top:16px; font-size:16px; }
-  body.mob .lang { left:auto; right:16px; top:10px; bottom:auto; font-size:clamp(13px, 1.4vw, 20px); }
-  body.mob .lang a { display:inline-block; padding:8px 6px; }                 /* touch targets */
+  /* phones/tablets (Carlos, 3 Nov): ENGLISH over SPANISH, no pipe, each line level with CALI STERIUM / ARTIFICIAL UNEMPLOYMENT */
+  body.mob .lang { left:auto; right:16px; top:16px; bottom:auto; font-size:0; text-align:right; }
+  body.mob .lang a { display:block; margin:0; padding:0 0 0 12px; font-size:clamp(13px, 1.4vw, 20px); line-height:calc(1.15 * clamp(16px, 1.8vw, 28px)); }
   body.mob #head { font-size:clamp(16px, 1.8vw, 28px); line-height:1.15; }
   body.mob #labels { bottom:auto; }
   body.mob #list { position:absolute; left:16px; right:16px; display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:22px 20px; }
@@ -134,9 +135,11 @@
   body.mob.pop-c .ced { font-size:clamp(13.5px, 1.4vw, 22px); } body.mob.pop-c .ced th { font-size:clamp(11.5px, 1.2vw, 18px); }
   body.mob.pop-c .head2 h2 { font-size:clamp(22px, 2.2vw, 34px); }
   /* h6: on phones a second tap opens the work; say so under the selected title */
-  .lab .again { display:none; } body.mob .lab.on .again { display:block; margin-top:6px; font-size:clamp(11px, 1.2vw, 16px); color:#8a8a8a; letter-spacing:.06em; text-transform:uppercase; }
+  .lab .again { display:none; }                              /* (two-tap flow dropped by Carlos, 3 Nov: one tap opens) */
+  body.mob .lab .e.btn { display:none; }                      /* the title below the feet carries no second APPLY button */
   /* h7: while Untitled is lit on phones the other APPLY buttons go dark like the titles on desktop */
-  body.nl.mob .apply:not(.on) { background:#1e1e1e; color:#3a3a3a; border-color:#2c2c2c; }
+  body.nl.mob .apply:not(.free) { display:none; }
+  body.nl .apply.free, body.mob .apply.free.on { color:#0d0d0d; background:#3dbfa8; border-color:#7fdccb; }
   body.mob #scan .ro { display:none; }
 
   /* ---- popup, as in entrega-intermedia/sitio: title + close, then the piece and the credits ---- */
@@ -165,6 +168,9 @@
   .scroll-hint b.dn { animation-name:nudgeDn; } @keyframes nudgeDn { 50% { transform:translateY(6px); } }
   @keyframes hintIn { from { opacity:0; transform:translateX(-12px); } }
   .piece video, .piece iframe { display:block; width:100%; height:100%; border:0; object-fit:contain; }
+  .piece video { object-fit:cover; }                        /* a rounding strip of the background showed as a white line (Carlos, 3 Nov) */
+  .vsnd { text-align:right; padding:14px 22px 0; } .vsnd a { font-family:"IBM Plex Mono", monospace; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:#3dbfa8; text-decoration:none; }
+  .vsnd a:hover { color:#7fdccb; } body.mob.pop-c .vsnd { padding:14px 16px 0; }
   .ced { border-collapse:collapse; width:100%; font-size:12px; }
   .ced tr { border-bottom:1px solid var(--line); }
   .ced tr:last-child { border-bottom:0; }
@@ -737,10 +743,8 @@ function fillLabels() {
 const applyBtns = PARTS.map((w, p) => {
   const b = document.createElement('button'); b.className = 'apply'; b.textContent = 'Apply';
   b.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') setTarget(p); });
-  b.addEventListener('click', e => {
-    if (e.pointerType === 'mouse' || target === p) openPart(p);
-    else setTarget(p);
-  });
+  b.addEventListener('click', () => { setTarget(p); openPart(p); });   // one tap: the title shows below and the work opens (Carlos, 3 Nov)
+  if (p === FREE) b.classList.add('free');
   document.body.appendChild(b);
   return b;
 });
@@ -918,8 +922,12 @@ function fillInfo(w) {
       <tr><th>${t.series}</th><td>${lang === 'es' ? 'Desempleo Artificial' : 'Artificial Unemployment'}</td></tr>
       <tr><th>${t.date}</th><td>${w.date[lang]}</td></tr>
       <tr><th>${t.medium}</th><td>${(MEDIUM[w.id] || w.medium)[lang]}</td></tr>
-    </table>`;
+    </table>` + (w.piece.sound ? '<div class="vsnd"><a href="#" id="vsndBtn"></a></div>' : '');
+  const vb = modal.querySelector('#vsndBtn');
+  if (vb) { vsndLabel(); vb.addEventListener('click', e => { e.preventDefault(); const v = piece.querySelector('video'); if (v) { v.muted = !v.muted; if (!v.muted) v.play().catch(() => {}); } vsndLabel(); }); }
 }
+// the sound switch of a video piece (Carlos, 3 Nov: Growing had no way to mute on a computer); it reads the real state of the video
+function vsndLabel() { const vb = modal.querySelector('#vsndBtn'), v = piece.querySelector('video'); if (vb) vb.textContent = (lang === 'es' ? '[ sonido: ' : '[ sound: ') + (v && !v.muted ? 'on ]' : 'off ]'); }
 function fit() {
   if (!current) return;
   let PW = panel.clientWidth, PH = panel.clientHeight - head2.offsetHeight, r = current.ratio;
@@ -952,7 +960,8 @@ function openWork(w) {
   const fr = piece.querySelector('iframe');                     // Escape pressed inside a game (same origin) closes the popup too
   if (fr) fr.addEventListener('load', () => { try { fr.contentWindow.addEventListener('keydown', e => { if (e.key === 'Escape') closeWork(); }); } catch (e) {} });
   const vd = piece.querySelector('video');                      // autoplay with sound refused (iOS): play muted rather than not at all
-  if (vd) { const pr = vd.play(); if (pr && pr.catch) pr.catch(() => { vd.muted = true; vd.play().catch(() => {}); }); }
+  if (vd) { const pr = vd.play(); if (pr && pr.then) pr.then(vsndLabel, () => { vd.muted = true; vd.play().catch(() => {}); vsndLabel(); }); }
+  vsndLabel();
   modal.classList.add('open');
   panel.scrollTop = 0;
   history.replaceState(null, '', '#' + w.id);
@@ -985,7 +994,6 @@ function closeWork() {
   modal.classList.remove('open');
   piece.innerHTML = '';             // stops the video / game and its sound
   current = null;
-  if (MOB) setTarget(-1);
   history.replaceState(null, '', location.pathname + location.search);
 }
 modal.querySelector('.x').addEventListener('click', closeWork);
@@ -1025,8 +1033,7 @@ renderer.domElement.addEventListener('pointerleave', e => { if (e.pointerType !=
 let tapped = -1;
 renderer.domElement.addEventListener('click', e => {
   const p = pick(e);
-  // touch: first tap shows colour + title, second tap opens the work
-  if (e.pointerType === 'touch' && p !== target) { setTarget(p); return; }
+  if (e.pointerType === 'touch') setTarget(p);                // the title shows below; one tap opens (Carlos, 3 Nov)
   openPart(p);
 });
 if (location.hash) { const w = PARTS.find(w => w.id && '#' + w.id === location.hash); if (w) openWork(w); }
