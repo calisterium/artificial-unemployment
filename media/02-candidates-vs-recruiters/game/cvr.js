@@ -22,7 +22,7 @@
     phrase: { in: 0.12, hold: 2.6, out: 0 },               // out 0 (Carlos, 4 Nov): the phrase cuts to nothing, no fade
     cloud: { hold: 0.5, end: 0.7 },                        // the pixel cloud around the phrase: shown 0.5 s, gone at 0.7 s
     frame: { l: 145, r: 1997, t: 40, b: 1314 },            // the drawn frame inside bg.jpg (bg px): the white margin is outside it
-    sparks: 260, glitchPx: [14, 26],                        // margin explosion dots per hit; coloured glitch pixels per hit (stay until APPLY)
+    sparks: 260, glitchPx: [14, 26], glitchLife: 3,        // margin explosion dots per hit; coloured 1-px glitch pixels per hit, fading out over 3 s
     phraseY: 1448, phraseSize: 100, phraseColor: '#cc0000', // under the drawn frame
     intro: 'Click on the apply button to get your next job!',
     cropX: 330,                                          // bg.jpg starts this far into the sheet (narrow stage)
@@ -259,6 +259,7 @@
       this.crumbs = this.crumbs.filter(c => t - c.born < c.life);
       if (this.phrase && t - this.phrase.born > CFG.phrase.in + CFG.phrase.hold + CFG.phrase.out) this.phrase = null;
       if (this.sparks.length && t - this.sparks[0].born > CFG.cloud.end) this.sparks = [];
+      if (this.glitch.length && t - this.glitch[0].born > CFG.glitchLife) this.glitch = [];
     }
 
     hit(R, O) {
@@ -299,10 +300,11 @@
       }
       const COL = ['#ff0000', '#0000ff', '#ffff00', '#00ff00', '#ff7f00', '#8000ff', '#00ffff', '#ff00ff'];
       const n = CFG.glitchPx[0] + Math.floor(R() * (CFG.glitchPx[1] - CFG.glitchPx[0] + 1));
-      for (let i = 0; i < n; i++) {
-        const sz = 5 + R() * 6;
-        this.glitch.push({ x: CFG.cropX + R() * W, y: R() * H, w: R() < .3 ? sz * (2 + R() * 3) : sz, h: sz, c: COL[(R() * COL.length) | 0],
-          rate: 4 + R() * 9, phase: R() * Math.PI * 2, duty: .35 + R() * .45 });
+      for (let i = 0; i < n; i++) {                            // 4 Nov, later (Carlos): only in the white margin, 1 screen pixel, 3 s fading
+        let u = R() * tot, j = 0; while (u > area[j]) { u -= area[j]; j++; }
+        const b = bands[j];
+        this.glitch.push({ x: CFG.cropX + b[0] + R() * b[2], y: b[1] + R() * b[3], c: COL[(R() * COL.length) | 0],
+          rate: 4 + R() * 9, phase: R() * Math.PI * 2, duty: .35 + R() * .45, born: t });
       }
     }
 
@@ -340,9 +342,12 @@
       ctx.globalAlpha = 1;
     }
     drawGlitch(ctx) {
+      if (!this.glitch.length) return;
+      const px = 1 / (ctx.getTransform().a || 1);                           // one screen pixel in scene units
       for (const g of this.glitch) {
+        const age = this.t - g.born, fade = 1 - age / CFG.glitchLife; if (fade <= 0) continue;
         const ph = (this.t * g.rate + g.phase) % 1, on = ph < g.duty;        // blinking: on for `duty` of each cycle
-        ctx.globalAlpha = on ? 1 : .2; ctx.fillStyle = g.c; ctx.fillRect(g.x, g.y, g.w, g.h);
+        ctx.globalAlpha = (on ? 1 : .2) * fade; ctx.fillStyle = g.c; ctx.fillRect(g.x, g.y, px, px);
       }
       ctx.globalAlpha = 1;
     }
