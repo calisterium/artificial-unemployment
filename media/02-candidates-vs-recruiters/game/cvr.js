@@ -22,7 +22,7 @@
     phrase: { in: 0.12, hold: 2.6, out: 0 },               // out 0 (Carlos, 4 Nov): the phrase cuts to nothing, no fade
     cloud: { hold: 0.5, end: 0.7 },                        // the pixel cloud around the phrase: shown 0.5 s, gone at 0.7 s
     frame: { l: 98, r: 2013, t: 26, b: 1325 },             // outer hull of the hand-drawn frame in bg.jpg (bg px, measured 4 Nov): the margin bands lie outside
-    sparks: 260, glitchPx: [42, 78], glitchLife: 1.5, glitchSize: 2, // margin dots per hit; coloured 2-px glitch pixels per hit (x3, Carlos), fading out over 1.5 s
+    sparks: 260, glitchPx: [42, 78], glitchLife: 1.2, glitchSize: 2, // margin dots per hit; 2-px glitch pixels per hit in grays (Carlos, 4 Nov), fading out over 1.2 s
     phraseY: 1448, phraseSize: 100, phraseColor: '#cc0000', // under the drawn frame
     intro: 'Click on the apply button to get your next job!',
     cropX: 330,                                          // bg.jpg starts this far into the sheet (narrow stage)
@@ -298,7 +298,7 @@
         this.sparks.push({ x: CFG.cropX + b[0] + R() * b[2], y: b[1] + R() * b[3], w: dash ? sz * (3 + R() * 4) : sz, h: dash ? sz * .5 : sz,
           c: GRAYS[(R() * GRAYS.length) | 0], a: .5 + R() * .5, born: t });
       }
-      const COL = ['#ff0000', '#0000ff', '#ffff00', '#00ff00', '#ff7f00', '#8000ff', '#00ffff', '#ff00ff'];
+      const COL = ['#000000', '#1a1a1a', '#3a3a3a', '#5c6166', '#8c949a', '#a4abb0', '#c0c5c9', '#ffffff'];   // grays (was primaries/secondaries)
       const n = CFG.glitchPx[0] + Math.floor(R() * (CFG.glitchPx[1] - CFG.glitchPx[0] + 1));
       for (let i = 0; i < n; i++) {                            // 4 Nov, later (Carlos): only in the white margin, 1 screen pixel, 3 s fading
         let u = R() * tot, j = 0; while (u > area[j]) { u -= area[j]; j++; }
