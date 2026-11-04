@@ -19,7 +19,7 @@
     hitDist: 0.035,                                      // discs touch when this close along the path
     burst: { pop: 0.07, hold: 0.30, fade: 0.28 },
     crumbs: [5, 8], crumbLife: [0.9, 1.5], gravity: 700,
-    phrase: { in: 0.12, hold: 2.6, out: 0.5 },
+    phrase: { in: 0.12, hold: 2.6, out: 0 },               // out 0 (Carlos, 4 Nov): the phrase cuts to nothing, no fade
     phraseY: 1448, phraseSize: 100, phraseColor: '#cc0000', // under the drawn frame
     intro: 'Click on the apply button to get your next job!',
     cropX: 330,                                          // bg.jpg starts this far into the sheet (narrow stage)
@@ -302,7 +302,7 @@
     drawPhrase(ctx) {
       if (!this.phrase) return;
       const P = CFG.phrase, a = this.t - this.phrase.born;
-      const alpha = a < P.in ? a / P.in : a < P.in + P.hold ? 1 : 1 - (a - P.in - P.hold) / P.out;
+      const alpha = a < P.in ? a / P.in : a < P.in + P.hold ? 1 : P.out > 0 ? 1 - (a - P.in - P.hold) / P.out : 0;
       const s = ctx.getTransform().a || 1, ph = this.phrase, W0 = this.A.bg.width - 120, H0 = W0 * 150 / 1560, wpx = W0 * s;
       if (!ph.art || Math.abs(ph.artW - wpx) > 1) { ph.art = PhraseArt.make(ph.text, wpx, H0 * s); ph.artW = wpx; }
       ctx.save(); ctx.globalAlpha = clamp01(alpha);
