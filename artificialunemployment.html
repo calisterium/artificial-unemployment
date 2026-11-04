@@ -362,20 +362,33 @@ function placeholder() {
   g.fillText('09', 360, 360);
   return c;
 }
-// 4 Nov 2026: the page no longer waits for the 8 preview videos (GitHub served one of them in 15 s and the page stayed black):
-// a video that is not ready within VIDEO_WAIT ms gives its poster for now and swaps itself in when it arrives (`late`).
-const VIDEO_WAIT = 1500, late = []; let imgsReady = false;
-function loadVideo(src, poster, p) {
-  return new Promise((res) => {
-    const v = document.createElement('video'); let done = false;
+// 4 Nov 2026 (Carlos): the page starts with the 8 posters and the preview videos arrive ONE BY ONE, lightest first, each one
+// swapping into the atlas when its first frames are decoded; then the two full videos are fetched quietly. Eight parallel
+// downloads shared the bandwidth so nothing finished soon, and a slow one (GitHub cold cache) kept the page black.
+const VIDEO_ORDER = ['12', '01', 'cc', '02', '03', '07', '11', '06'];
+function startVideo(src, p) {
+  return new Promise(res => {
+    const v = document.createElement('video'); let swapped = false, settled = false;
     v.muted = true; v.loop = true; v.playsInline = true; v.autoplay = true; v.preload = 'auto';
-    v.onloadeddata = () => { v.play().catch(() => {}); if (!done) { done = true; res(v); } else if (imgsReady) imgs[p] = v; else late.push([p, v]); };
-    v.onerror = () => { if (!done) { done = true; (poster ? loadImg(poster) : Promise.reject()).then(res, () => res(plainGray())); } };
-    setTimeout(() => { if (!done) { done = true; (poster ? loadImg(poster) : Promise.reject()).then(res, () => res(plainGray())); } }, VIDEO_WAIT);
+    const swap = () => { if (!swapped) { swapped = true; imgs[p] = v; v.play().catch(() => {}); } };
+    const settle = () => { if (!settled) { settled = true; res(); } };
+    v.onloadeddata = swap;                                   // first frames decoded: shown at once
+    v.oncanplaythrough = () => { swap(); settle(); };        // enough buffered: the next one may start
+    v.onerror = settle;
+    setTimeout(settle, 12000);                               // a slow one must not block the rest (it still swaps in when ready)
     v.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none';
     document.body.appendChild(v);   // kept in the page so every browser keeps decoding it
     v.src = src;
   });
+}
+async function loadVideosInTurn() {
+  for (const id of VIDEO_ORDER) { const p = PARTS.findIndex(w => w.id === id); if (p >= 0 && PARTS[p].thumb) await startVideo(SITE + PARTS[p].thumb, p); }
+  preloadFullVideos();
+}
+// the two video works are fetched quietly once the previews are in (Shrinking whole first, then Growing), so the popup plays at once
+function preloadFullVideos() {
+  const vs = PARTS.filter(w => w.id && w.piece && w.piece.video).sort((a, b) => a.id === '01' ? -1 : 1);
+  vs.forEach((w, i) => setTimeout(() => { const v = document.createElement('video'); v.preload = 'auto'; v.muted = true; v.src = SITE + w.piece.video; }, i * 4000));
 }
 
 // ---------- model: MakeHuman base mesh, young male (CC0), already in A-pose ----------
@@ -479,8 +492,8 @@ function testCard(p) { const c = document.createElement('canvas'); c.width = c.h
   g.fillStyle = '#fff'; g.fillRect(0, 0, 512, 512); g.fillStyle = '#c00'; g.font = 'bold 200px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillText('R' + p, 256, 200); g.fillStyle = '#00c'; g.fillRect(0, 440, 512, 72); return c; }
 const imgs = Q.has('testtex') ? PARTS.map((w, p) => testCard(p)) : await Promise.all(PARTS.map((w, p) => PRINT ? (w.id ? (PRINT_FRAME[w.id] ? videoFrame(PRINT_FRAME[w.id]) : loadImg('media/' + POSTER[w.id] + '/poster.jpg')) : plainGray())
-                                                  : (w.thumb ? loadVideo(SITE + w.thumb, w.poster && SITE + w.poster, p) : plainGray() /* the face: plain body */)));
-late.forEach(([p, v]) => { imgs[p] = v; }); imgsReady = true;
+                                                  : (w.poster ? loadImg(SITE + w.poster).catch(() => plainGray()) : plainGray() /* the face: plain body */)));
+if (!PRINT && !Q.has('testtex')) { if (REC) await loadVideosInTurn(); else loadVideosInTurn(); }   // stills (?rec) wait for every video
 const aspect = imgs.map(im => (im.videoWidth || im.width) / (im.videoHeight || im.height));
 const cellOf = p => [(p % 3) * CELL, Math.floor(p / 3) * CELL];
 imgs.forEach((im, p) => actx.drawImage(im, ...cellOf(p), CELL, CELL));
@@ -913,11 +926,6 @@ document.querySelectorAll('[data-lang]').forEach(a => a.addEventListener('click'
 setLang(lang);
 addEventListener('resize', resize);
 resize();
-// Shrinking waited ~3 s buffering before it moved (Carlos, 3 Nov): the video works are fetched quietly once the page is up, so
-// the popup plays from the browser's media cache (01 whole, 2 MB; Growing only its metadata, it is 9 MB)
-// (3 Nov, later: Growing is now a 720p copy of ~4 MB and is fetched whole too, 4 s after Shrinking, one after the other)
-setTimeout(() => { const vs = PARTS.filter(w => w.id && w.piece && w.piece.video).sort((a, b) => a.id === '01' ? -1 : 1);
-  vs.forEach((w, i) => setTimeout(() => { const v = document.createElement('video'); v.preload = 'auto'; v.muted = true; v.src = SITE + w.piece.video; }, i * 4000)); }, 2500);
 
 // ---------- popup (same as the intermediate delivery site) ----------
 const modal = document.createElement('div');
