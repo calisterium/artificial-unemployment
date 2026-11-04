@@ -22,7 +22,7 @@
     phrase: { in: 0.12, hold: 2.6, out: 0 },               // out 0 (Carlos, 4 Nov): the phrase cuts to nothing, no fade
     cloud: { hold: 0.5, end: 0.7 },                        // the pixel cloud around the phrase: shown 0.5 s, gone at 0.7 s
     frame: { l: 145, r: 1997, t: 40, b: 1314 },            // the drawn frame inside bg.jpg (bg px): the white margin is outside it
-    sparks: 260, glitchPx: [14, 26], glitchLife: 3,        // margin explosion dots per hit; coloured 1-px glitch pixels per hit, fading out over 3 s
+    sparks: 260, glitchPx: [42, 78], glitchLife: 6, glitchSize: 2,   // margin dots per hit; coloured 2-px glitch pixels per hit (x3, Carlos), fading out over 6 s
     phraseY: 1448, phraseSize: 100, phraseColor: '#cc0000', // under the drawn frame
     intro: 'Click on the apply button to get your next job!',
     cropX: 330,                                          // bg.jpg starts this far into the sheet (narrow stage)
@@ -343,7 +343,7 @@
     }
     drawGlitch(ctx) {
       if (!this.glitch.length) return;
-      const px = 1 / (ctx.getTransform().a || 1);                           // one screen pixel in scene units
+      const px = CFG.glitchSize / (ctx.getTransform().a || 1);              // glitchSize screen pixels in scene units
       for (const g of this.glitch) {
         const age = this.t - g.born, fade = 1 - age / CFG.glitchLife; if (fade <= 0) continue;
         const ph = (this.t * g.rate + g.phase) % 1, on = ph < g.duty;        // blinking: on for `duty` of each cycle
