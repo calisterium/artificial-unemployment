@@ -63,8 +63,15 @@
     return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im);
       im.onerror = () => { if (im.src.endsWith('.webp')) { im.src = src; } else rej(new Error(src)); }; im.src = webp; });
   }
+  // the rejection phrase is drawn by hand + machine (4 Nov 2026): two fonts, loaded with the pictures
+  function loadFonts(base) {
+    if (!window.FontFace || !document.fonts) return Promise.resolve();
+    const fs = [new FontFace('CVRHand', `url(${base}fonts/NothingYouCouldDo.woff2)`), new FontFace('CVRPix', `url(${base}fonts/WebPlus_IBM_VGA_8x16.woff)`)];
+    return Promise.all(fs.map(f => f.load().then(l => document.fonts.add(l)).catch(() => {})));
+  }
   async function loadAssets(base, bgName) {
     const man = window.CVR_MANIFEST;
+    const fontsReady = loadFonts(base);
     const A = { man, img: {}, press: {} };
     const jobs = [loadImage(base + 'img/' + (bgName || 'bg.jpg')).then(i => (A.bg = i))];
     for (const n of Object.keys(man.sprites)) jobs.push(loadImage(base + 'img/' + n + '.png').then(i => (A.img[n] = i)));
@@ -72,7 +79,7 @@
       A.press[n] = [];
       for (let k = 1; k < p.n; k++) jobs.push(loadImage(base + `img/press_${n}_${k}.jpg`).then(i => (A.press[n][k] = i)));
     }
-    await Promise.all(jobs);
+    await Promise.all(jobs); await fontsReady;
     return A;
   }
 
@@ -95,6 +102,81 @@
     if (dt < p.down + p.hold + p.up) return 1 - (dt - p.down - p.hold) / p.up;
     return 0;
   }
+
+  // ---------- the rejection phrase, style N (Carlos, 4 Nov 2026) ----------
+  // Every letter is drawn on its own: half of them by hand (CVRHand, with tilt, wobble, a double pass, scratches and a pencil
+  // texture), the other half by the machine (CVRPix at hard pixels, flat gray); then each letter gets its own contrast:
+  // soft, base gray, dark or plain black. The phrase is rendered once per hit, at the pixels it is shown with (PhraseArt.make).
+  const PhraseArt = (() => {
+    const gray = (k, a = 1) => `rgba(${Math.round(151 + (k - 158) * .97)},${Math.round(158 + (k - 158))},${Math.round(164 + (k - 158) * 1.03)},${a})`;
+    const R = Math.random;
+    let tile = null, tileScale = 0;
+    function hatchTile(sc) {                      // pencil texture, one tile reused with random offsets
+      if (tile && Math.abs(tileScale - sc) < .01) return tile;
+      const w = 512, h = 256, c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
+      g.fillStyle = gray(160); g.fillRect(0, 0, w, h); g.lineCap = 'round';
+      for (let i = 0; i < 1400; i++) { const x = R() * w, y = R() * h, len = 70 * sc * (.5 + R()), a = -0.95 + (R() - .5) * .35;
+        g.strokeStyle = gray(108 + R() * 70, .5); g.lineWidth = 2.2 * sc * (.6 + R() * .8);
+        g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len); g.stroke(); }
+      const id = g.getImageData(0, 0, w, h), d = id.data;
+      for (let i = 0; i < d.length; i += 4) { const v = (R() - .5) * 18; d[i] += v; d[i + 1] += v; d[i + 2] += v; if (R() < .05) d[i + 3] = 0; }
+      g.putImageData(id, 0, 0); tile = c; tileScale = sc; return c;
+    }
+    const pix = {};
+    function pixelGlyph(ch, scale) {              // a machine letter: 16 px VGA enlarged with hard pixels
+      const key = ch + '@' + scale; if (pix[key]) return pix[key];
+      const t = document.createElement('canvas'); t.width = 32; t.height = 32; const g = t.getContext('2d');
+      g.font = '16px CVRPix'; g.textBaseline = 'middle'; g.textAlign = 'center'; g.fillStyle = '#000'; g.fillText(ch, 16, 16);
+      const adv = Math.ceil(g.measureText(ch).width);
+      const o = document.createElement('canvas'); o.width = 32 * scale; o.height = 32 * scale; const og = o.getContext('2d');
+      og.imageSmoothingEnabled = false; og.drawImage(t, 0, 0, o.width, o.height);
+      return (pix[key] = { cv: o, adv: adv * scale });
+    }
+    function tone() { const r = R(); if (r < .15) return [1, true]; if (r < .5) return [.3 + R() * .45, true]; if (r < .75) return [.2 + R() * .35, false]; return [0, false]; }
+    function make(text, width, height) {
+      const o = document.createElement('canvas'); o.width = Math.ceil(width); o.height = Math.ceil(height); const g = o.getContext('2d');
+      const sc = width / 1560, size0 = 112 * sc, tex = hatchTile(sc);
+      const chars = [...text].map(ch => ({ ch, bot: ch !== ' ' && R() < .5 }));
+      const m = document.createElement('canvas').getContext('2d');
+      const pscale = k => Math.max(1, Math.round(6 * sc * k));
+      const measure = k => { m.font = `${size0 * k}px CVRHand`; return chars.reduce((a, c) => a + (c.bot ? pixelGlyph(c.ch, pscale(k)).adv + 4 * sc : m.measureText(c.ch).width * .96), 0); };
+      let k = 1, total = measure(1); const room = width - 40 * sc;
+      if (total > room) k = room / total;
+      for (let i = 0; i < 24 && (total = measure(k)) > room; i++) k *= .97;   // the pixel letters shrink in whole steps
+      const size = size0 * k, ps = pscale(k); m.font = `${size}px CVRHand`;
+      let x = (width - total) / 2, cy = height / 2;
+      for (const c of chars) {
+        let adv, L;
+        if (c.bot) {
+          const gl = pixelGlyph(c.ch, ps); adv = gl.adv + 4 * sc;
+          L = document.createElement('canvas'); L.width = gl.cv.width + 4; L.height = gl.cv.height + 4; const lg = L.getContext('2d');
+          lg.drawImage(gl.cv, 2, 2); lg.globalCompositeOperation = 'source-in'; lg.fillStyle = gray(140); lg.fillRect(0, 0, L.width, L.height); lg.globalCompositeOperation = 'source-over';
+          const [tk, dark] = tone(); if (tk) { lg.globalCompositeOperation = 'source-atop'; lg.fillStyle = dark ? `rgba(0,0,0,${tk})` : `rgba(255,255,255,${tk})`; lg.fillRect(0, 0, L.width, L.height); }
+          g.drawImage(L, x + adv / 2 - L.width / 2, cy - L.height / 2);
+        } else {
+          adv = m.measureText(c.ch).width * .96;
+          const bw = Math.ceil(adv + size * 1.2), bh = Math.ceil(size * 1.6);
+          L = document.createElement('canvas'); L.width = bw; L.height = bh; const lg = L.getContext('2d');
+          lg.font = m.font; lg.textBaseline = 'middle'; lg.textAlign = 'center';
+          const rot = (R() - .5) * .16, dy = (R() - .5) * 14 * sc, s2 = 1 + (R() - .5) * .26;
+          for (let p = 0; p < 3; p++) { lg.save(); lg.translate(bw / 2 + (R() - .5) * 3.5 * sc, bh / 2 + dy + (R() - .5) * 3.5 * sc); lg.rotate(rot); lg.scale(s2, s2);
+            lg.globalAlpha = p ? .6 : 1; lg.fillStyle = '#000'; lg.fillText(c.ch, 0, 0); lg.restore(); }
+          lg.globalCompositeOperation = 'destination-out'; lg.lineCap = 'round';
+          for (let i = 0; i < 3; i++) { const sx = R() * bw, sy = bh * (.25 + R() * .5), a = -0.3 + (R() - .5) * 1.2, l = (15 + R() * 50) * sc;
+            lg.lineWidth = (.8 + R() * 1.8) * sc; lg.beginPath(); lg.moveTo(sx, sy); lg.lineTo(sx + Math.cos(a) * l, sy + Math.sin(a) * l); lg.stroke(); }
+          lg.globalCompositeOperation = 'source-in';
+          const ox = -Math.floor(R() * (tex.width - bw)), oy = -Math.floor(R() * Math.max(1, tex.height - bh));
+          lg.drawImage(tex, ox, oy); if (bw > tex.width + ox) lg.drawImage(tex, ox + tex.width, oy);
+          lg.globalCompositeOperation = 'source-over';
+          const [tk, dark] = tone(); if (tk) { lg.globalCompositeOperation = 'source-atop'; lg.fillStyle = dark ? `rgba(0,0,0,${tk})` : `rgba(255,255,255,${tk})`; lg.fillRect(0, 0, bw, bh); }
+          g.drawImage(L, x + adv / 2 - bw / 2, cy - bh / 2);
+        }
+        x += adv;
+      }
+      return o;
+    }
+    return { make };
+  })();
 
   // ---------- scene ----------
   class Scene {
@@ -221,9 +303,10 @@
       if (!this.phrase) return;
       const P = CFG.phrase, a = this.t - this.phrase.born;
       const alpha = a < P.in ? a / P.in : a < P.in + P.hold ? 1 : 1 - (a - P.in - P.hold) / P.out;
+      const s = ctx.getTransform().a || 1, ph = this.phrase, W0 = this.A.bg.width - 120, H0 = W0 * 150 / 1560, wpx = W0 * s;
+      if (!ph.art || Math.abs(ph.artW - wpx) > 1) { ph.art = PhraseArt.make(ph.text, wpx, H0 * s); ph.artW = wpx; }
       ctx.save(); ctx.globalAlpha = clamp01(alpha);
-      ctx.font = `${CFG.phraseSize}px Arial, Helvetica, sans-serif`; ctx.fillStyle = CFG.phraseColor; ctx.textAlign = 'center';
-      ctx.fillText(this.phrase.text, CFG.cropX + this.A.bg.width / 2, CFG.phraseY, this.A.bg.width - 120);
+      ctx.drawImage(ph.art, CFG.cropX + 60, CFG.phraseY - 40 - H0 / 2, W0, H0);
       ctx.restore();
     }
 
