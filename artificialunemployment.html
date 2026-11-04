@@ -362,12 +362,16 @@ function placeholder() {
   g.fillText('09', 360, 360);
   return c;
 }
-function loadVideo(src) {
-  return new Promise((res, rej) => {
-    const v = document.createElement('video');
+// 4 Nov 2026: the page no longer waits for the 8 preview videos (GitHub served one of them in 15 s and the page stayed black):
+// a video that is not ready within VIDEO_WAIT ms gives its poster for now and swaps itself in when it arrives (`late`).
+const VIDEO_WAIT = 1500, late = []; let imgsReady = false;
+function loadVideo(src, poster, p) {
+  return new Promise((res) => {
+    const v = document.createElement('video'); let done = false;
     v.muted = true; v.loop = true; v.playsInline = true; v.autoplay = true; v.preload = 'auto';
-    v.onloadeddata = () => { v.play().catch(() => {}); res(v); };
-    v.onerror = () => rej(new Error('video ' + src));
+    v.onloadeddata = () => { v.play().catch(() => {}); if (!done) { done = true; res(v); } else if (imgsReady) imgs[p] = v; else late.push([p, v]); };
+    v.onerror = () => { if (!done) { done = true; (poster ? loadImg(poster) : Promise.reject()).then(res, () => res(plainGray())); } };
+    setTimeout(() => { if (!done) { done = true; (poster ? loadImg(poster) : Promise.reject()).then(res, () => res(plainGray())); } }, VIDEO_WAIT);
     v.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none';
     document.body.appendChild(v);   // kept in the page so every browser keeps decoding it
     v.src = src;
@@ -474,8 +478,9 @@ function videoFrame([src, t]) {
 function testCard(p) { const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d');
   g.fillStyle = '#fff'; g.fillRect(0, 0, 512, 512); g.fillStyle = '#c00'; g.font = 'bold 200px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillText('R' + p, 256, 200); g.fillStyle = '#00c'; g.fillRect(0, 440, 512, 72); return c; }
-const imgs = Q.has('testtex') ? PARTS.map((w, p) => testCard(p)) : await Promise.all(PARTS.map(w => PRINT ? (w.id ? (PRINT_FRAME[w.id] ? videoFrame(PRINT_FRAME[w.id]) : loadImg('media/' + POSTER[w.id] + '/poster.jpg')) : plainGray())
-                                                  : (w.thumb ? loadVideo(SITE + w.thumb) : plainGray() /* the face: plain body */)));
+const imgs = Q.has('testtex') ? PARTS.map((w, p) => testCard(p)) : await Promise.all(PARTS.map((w, p) => PRINT ? (w.id ? (PRINT_FRAME[w.id] ? videoFrame(PRINT_FRAME[w.id]) : loadImg('media/' + POSTER[w.id] + '/poster.jpg')) : plainGray())
+                                                  : (w.thumb ? loadVideo(SITE + w.thumb, w.poster && SITE + w.poster, p) : plainGray() /* the face: plain body */)));
+late.forEach(([p, v]) => { imgs[p] = v; }); imgsReady = true;
 const aspect = imgs.map(im => (im.videoWidth || im.width) / (im.videoHeight || im.height));
 const cellOf = p => [(p % 3) * CELL, Math.floor(p / 3) * CELL];
 imgs.forEach((im, p) => actx.drawImage(im, ...cellOf(p), CELL, CELL));
