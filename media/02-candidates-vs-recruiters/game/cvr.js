@@ -21,8 +21,8 @@
     crumbs: [5, 8], crumbLife: [0.9, 1.5], gravity: 700,
     phrase: { in: 0.12, hold: 2.6, out: 0 },               // out 0 (Carlos, 4 Nov): the phrase cuts to nothing, no fade
     cloud: { hold: 0.5, end: 0.7 },                        // the pixel cloud around the phrase: shown 0.5 s, gone at 0.7 s
-    frame: { l: 145, r: 1997, t: 40, b: 1314 },            // the drawn frame inside bg.jpg (bg px): the white margin is outside it
-    sparks: 260, glitchPx: [42, 78], glitchLife: 6, glitchSize: 2,   // margin dots per hit; coloured 2-px glitch pixels per hit (x3, Carlos), fading out over 6 s
+    frame: { l: 98, r: 2013, t: 26, b: 1325 },             // outer hull of the hand-drawn frame in bg.jpg (bg px, measured 4 Nov): the margin bands lie outside
+    sparks: 260, glitchPx: [42, 78], glitchLife: 3, glitchSize: 2,   // margin dots per hit; coloured 2-px glitch pixels per hit (x3, Carlos), fading out over 3 s
     phraseY: 1448, phraseSize: 100, phraseColor: '#cc0000', // under the drawn frame
     intro: 'Click on the apply button to get your next job!',
     cropX: 330,                                          // bg.jpg starts this far into the sheet (narrow stage)
