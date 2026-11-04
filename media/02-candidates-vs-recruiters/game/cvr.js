@@ -20,6 +20,9 @@
     burst: { pop: 0.07, hold: 0.30, fade: 0.28 },
     crumbs: [5, 8], crumbLife: [0.9, 1.5], gravity: 700,
     phrase: { in: 0.12, hold: 2.6, out: 0 },               // out 0 (Carlos, 4 Nov): the phrase cuts to nothing, no fade
+    cloud: { hold: 0.5, end: 0.7 },                        // the pixel cloud around the phrase: shown 0.5 s, gone at 0.7 s
+    frame: { l: 145, r: 1997, t: 40, b: 1314 },            // the drawn frame inside bg.jpg (bg px): the white margin is outside it
+    sparks: 260, glitchPx: [14, 26],                        // margin explosion dots per hit; coloured glitch pixels per hit (stay until APPLY)
     phraseY: 1448, phraseSize: 100, phraseColor: '#cc0000', // under the drawn frame
     intro: 'Click on the apply button to get your next job!',
     cropX: 330,                                          // bg.jpg starts this far into the sheet (narrow stage)
@@ -135,13 +138,16 @@
     }
     function tone() { const r = R(); if (r < .15) return [1, true]; if (r < .5) return [.3 + R() * .45, true]; if (r < .75) return [.2 + R() * .35, false]; return [0, false]; }
     function make(text, width, height) {
-      const o = document.createElement('canvas'); o.width = Math.ceil(width); o.height = Math.ceil(height); const g = o.getContext('2d');
-      const sc = width / 1560, size0 = 112 * sc, tex = hatchTile(sc);
+      // 4 Nov (Carlos): letters 10 % bigger and allowed past the margins: the canvas is 25 % wider than the box and the text
+      // may use 110 % of the box width before shrinking
+      const box = width; width = Math.ceil(box * 1.25);
+      const o = document.createElement('canvas'); o.width = width; o.height = Math.ceil(height); const g = o.getContext('2d');
+      const sc = box / 1560, size0 = 123 * sc, tex = hatchTile(sc);
       const chars = [...text].map(ch => ({ ch, bot: ch !== ' ' && R() < .5 }));
       const m = document.createElement('canvas').getContext('2d');
       const pscale = k => Math.max(1, Math.round(6 * sc * k));
       const measure = k => { m.font = `${size0 * k}px CVRHand`; return chars.reduce((a, c) => a + (c.bot ? pixelGlyph(c.ch, pscale(k)).adv + 4 * sc : m.measureText(c.ch).width * .96), 0); };
-      let k = 1, total = measure(1); const room = width - 40 * sc;
+      let k = 1, total = measure(1); const room = box * 1.1;
       if (total > room) k = room / total;
       for (let i = 0; i < 24 && (total = measure(k)) > room; i++) k *= .97;   // the pixel letters shrink in whole steps
       const size = size0 * k, ps = pscale(k); m.font = `${size}px CVRHand`;
@@ -176,7 +182,26 @@
       }
       return o;
     }
-    return { make };
+    // 4 Nov 2026 (Carlos): a cloud of broken pixels sprinkled around the letters, in the letters' own colours, shown with the
+    // phrase for CLOUD_HOLD s and gone by CLOUD_END s. Blocks and short glitch dashes placed near random letter pixels.
+    function cloud(art, box) {
+      const sc = box / 1560, w = art.width, h = art.height, c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
+      const d = art.getContext('2d').getImageData(0, 0, w, h).data, pts = [];
+      for (let i = 0; i < d.length; i += 4 * 7) if (d[i + 3] > 120) pts.push(i >> 2);
+      if (!pts.length) return c;
+      const N = 170, spread = 46 * sc;
+      for (let n = 0; n < N; n++) {
+        const i = pts[(R() * pts.length) | 0], px = i % w, py = (i / w) | 0;
+        const ang = R() * Math.PI * 2, dist = (0.25 + R() * .75) * spread * (R() < .15 ? 1.8 : 1);
+        const x = px + Math.cos(ang) * dist, y = py + Math.sin(ang) * dist * .55;
+        const sz = Math.max(1, Math.round((2 + R() * 4) * sc)), dash = R() < .22;
+        const k = i * 4, a = .55 + R() * .45;
+        g.fillStyle = `rgba(${d[k]},${d[k + 1]},${d[k + 2]},${a})`;
+        g.fillRect(Math.round(x), Math.round(y), dash ? sz * (3 + (R() * 5 | 0)) : sz, dash ? Math.max(1, sz >> 1) : sz);
+      }
+      return c;
+    }
+    return { make, cloud };
   })();
 
   // ---------- scene ----------
@@ -187,6 +212,7 @@
       this.seed = seed || 12345; this.r = rng(this.seed);
       this.t = 0; this.presses = { apply: [], reject: [] }; this.discs = []; this.bursts = []; this.crumbs = [];
       this.queue = []; this.nextK = 0; this.phrase = null; this.lastPhrase = -1; this.burstFlip = 0;
+      this.sparks = []; this.glitch = [];                    // 4 Nov 2026: margin explosion + screen-glitch pixels (Carlos)
     }
     stream(k, salt) { return this.loop ? rng(this.seed + (k % 20) * 7919 + salt * 104729) : this.r; }
     jitter(r) { const J = CFG.pathJitter; return [lerp(-J, J, r()), lerp(-J, J, r())]; }
@@ -196,6 +222,7 @@
       const k = this.nextK++, r = this.stream(k, 1), rr = (a, b) => lerp(a, b, r());
       this.presses.apply.push(t);
       if (!this.loop && window.AU) AU.play('apply', { gain: SND_GAIN });   // sound (4 Nov 2026): the red button is pressed
+      if (!this.loop) this.glitch = [];                      // the glitch pixels live until the next APPLY
       const tA = rr(...CFG.tApply), j = this.jitter(r);
       this.at(t + CFG.launchAt, () => this.discs.push({ k, side: 'apply', born: t + CFG.launchAt, dur: tA, j }));
       if (!answer) return;
@@ -231,6 +258,7 @@
       }
       this.crumbs = this.crumbs.filter(c => t - c.born < c.life);
       if (this.phrase && t - this.phrase.born > CFG.phrase.in + CFG.phrase.hold + CFG.phrase.out) this.phrase = null;
+      if (this.sparks.length && t - this.sparks[0].born > CFG.cloud.end) this.sparks = [];
     }
 
     hit(R, O) {
@@ -252,6 +280,30 @@
       if (this.loop) k = LOOP.order[R.k % 20];
       else do { k = Math.floor(r() * PHRASES.length); } while (k === this.lastPhrase);
       this.lastPhrase = k; this.phrase = { text: PHRASES[k], born: t };
+      if (!this.loop) this.spawnGlitch(t);
+    }
+    // 4 Nov 2026 (Carlos): the white margin around the drawing fills with dots of the letters' grays for the phrase's first
+    // 0.5 s (gone at 0.7 s), and a few pixels in primary / secondary colours land anywhere on the picture and twinkle there
+    // until the next APPLY, like a screen glitch
+    spawnGlitch(t) {
+      const F = CFG.frame, W = this.A.bg.width, H = this.A.bg.height, R = Math.random;
+      const GRAYS = ['#111111', '#2a2a2a', '#5c6166', '#8c949a', '#a4abb0', '#c0c5c9'];
+      const bands = [[0, 0, W, F.t], [0, F.b, W, H - F.b], [0, F.t, F.l, F.b - F.t], [F.r, F.t, W - F.r, F.b - F.t]];
+      const area = bands.map(b => b[2] * b[3]), tot = area.reduce((a, b) => a + b, 0);
+      this.sparks = [];
+      for (let i = 0; i < CFG.sparks; i++) {
+        let u = R() * tot, j = 0; while (u > area[j]) { u -= area[j]; j++; }
+        const b = bands[j], sz = 4 + R() * 9, dash = R() < .2;
+        this.sparks.push({ x: CFG.cropX + b[0] + R() * b[2], y: b[1] + R() * b[3], w: dash ? sz * (3 + R() * 4) : sz, h: dash ? sz * .5 : sz,
+          c: GRAYS[(R() * GRAYS.length) | 0], a: .5 + R() * .5, born: t });
+      }
+      const COL = ['#ff0000', '#0000ff', '#ffff00', '#00ff00', '#ff7f00', '#8000ff', '#00ffff', '#ff00ff'];
+      const n = CFG.glitchPx[0] + Math.floor(R() * (CFG.glitchPx[1] - CFG.glitchPx[0] + 1));
+      for (let i = 0; i < n; i++) {
+        const sz = 5 + R() * 6;
+        this.glitch.push({ x: CFG.cropX + R() * W, y: R() * H, w: R() < .3 ? sz * (2 + R() * 3) : sz, h: sz, c: COL[(R() * COL.length) | 0],
+          rate: 4 + R() * 9, phase: R() * Math.PI * 2, duty: .35 + R() * .45 });
+      }
     }
 
     pressFrame(side) {
@@ -276,7 +328,23 @@
       for (const d of [...this.discs].sort((a, b) => b.u - a.u)) this.drawDisc(ctx, d);
       for (const c of this.crumbs) this.drawCrumb(ctx, c);
       for (const b of this.bursts) this.drawBurst(ctx, b);
+      this.drawSparks(ctx);
       this.drawPhrase(ctx);
+      this.drawGlitch(ctx);
+    }
+    drawSparks(ctx) {
+      if (!this.sparks.length) return;
+      const C = CFG.cloud, a = this.t - this.sparks[0].born, k = a < C.hold ? 1 : a < C.end ? 1 - (a - C.hold) / (C.end - C.hold) : 0;
+      if (k <= 0) return;
+      for (const s of this.sparks) { ctx.globalAlpha = s.a * k; ctx.fillStyle = s.c; ctx.fillRect(s.x, s.y, s.w, s.h); }
+      ctx.globalAlpha = 1;
+    }
+    drawGlitch(ctx) {
+      for (const g of this.glitch) {
+        const ph = (this.t * g.rate + g.phase) % 1, on = ph < g.duty;        // blinking: on for `duty` of each cycle
+        ctx.globalAlpha = on ? 1 : .2; ctx.fillStyle = g.c; ctx.fillRect(g.x, g.y, g.w, g.h);
+      }
+      ctx.globalAlpha = 1;
     }
     drawDisc(ctx, d) {
       const A = this.A, age = this.t - d.born, pre = d.side === 'apply' ? '' : 'o', id = d.k % 20;
@@ -305,9 +373,13 @@
       const P = CFG.phrase, a = this.t - this.phrase.born;
       const alpha = a < P.in ? a / P.in : a < P.in + P.hold ? 1 : P.out > 0 ? 1 - (a - P.in - P.hold) / P.out : 0;
       const s = ctx.getTransform().a || 1, ph = this.phrase, W0 = this.A.bg.width - 120, H0 = W0 * 150 / 1560, wpx = W0 * s;
-      if (!ph.art || Math.abs(ph.artW - wpx) > 1) { ph.art = PhraseArt.make(ph.text, wpx, H0 * s); ph.artW = wpx; }
-      ctx.save(); ctx.globalAlpha = clamp01(alpha);
-      ctx.drawImage(ph.art, CFG.cropX + 60, CFG.phraseY - 40 - H0 / 2, W0, H0);
+      if (!ph.art || Math.abs(ph.artW - wpx) > 1) { ph.art = PhraseArt.make(ph.text, wpx, H0 * s); ph.cloud = PhraseArt.cloud(ph.art, wpx); ph.artW = wpx; }
+      const x0 = CFG.cropX + 60 - W0 * 0.125, y0 = CFG.phraseY - 40 - H0 / 2, Wd = W0 * 1.25;   // the art canvas is 25 % wider than the box
+      ctx.save();
+      const C = CFG.cloud, ca = a < C.hold ? 1 : a < C.end ? 1 - (a - C.hold) / (C.end - C.hold) : 0;
+      if (ca > 0) { ctx.globalAlpha = ca; ctx.drawImage(ph.cloud, x0, y0, Wd, H0); }
+      ctx.globalAlpha = clamp01(alpha);
+      ctx.drawImage(ph.art, x0, y0, Wd, H0);
       ctx.restore();
     }
 
