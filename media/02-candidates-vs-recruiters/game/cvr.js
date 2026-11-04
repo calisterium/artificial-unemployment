@@ -112,6 +112,7 @@
     apply(t, answer = true) {
       const k = this.nextK++, r = this.stream(k, 1), rr = (a, b) => lerp(a, b, r());
       this.presses.apply.push(t);
+      if (!this.loop && window.AU) AU.play('apply');                       // sound (4 Nov 2026): the red button is pressed
       const tA = rr(...CFG.tApply), j = this.jitter(r);
       this.at(t + CFG.launchAt, () => this.discs.push({ k, side: 'apply', born: t + CFG.launchAt, dur: tA, j }));
       if (!answer) return;
@@ -155,6 +156,8 @@
       const x = (pr[0] + po[0]) / 2, y = (pr[1] + po[1]) / 2, sc = lerp(CFG.scaleNear, CFG.scaleFar, u);
       const flip = this.loop ? R.k % 2 : (this.burstFlip ^= 1);
       this.bursts.push({ x, y, sc, born: t, name: flip ? 'burst_1' : 'burst_2', flip: r() < 0.5 ? -1 : 1 });
+      // sound (4 Nov 2026, Carlos): the discs clash -> the next of the four pieces of Round1, then round again; a new piece cuts the last
+      if (!this.loop && window.AU) { this.round = (this.round || 0) % 4 + 1; AU.play('round_' + this.round, { group: 'round' }); }
       const names = this.A.man.crumbs, n = Math.round(rr(...CFG.crumbs));
       for (let i = 0; i < n; i++) {
         const ang = rr(-Math.PI * 0.95, -Math.PI * 0.05), sp = rr(160, 520) * sc;
@@ -261,7 +264,9 @@
 
   // playable game on a canvas; keys=true also lets the space bar apply
   async function mountGame(cv, base, keys) {
-    const ctx = cv.getContext('2d'), A = await loadAssets(base);
+    const ctx = cv.getContext('2d');
+    if (window.AU) AU.load(base + '../sound/', ['apply', 'round_1', 'round_2', 'round_3', 'round_4']);   // media/<work>/sound/, ~65 KB, fetched when the work opens
+    const A = await loadAssets(base);
     function fit() {
       const w = Math.min(Math.round(cv.getBoundingClientRect().width * (window.devicePixelRatio || 1)), A.bg.width);
       if (w > 0 && cv.width !== w) { cv.width = w; cv.height = Math.round(w * A.bg.height / A.bg.width); }
@@ -274,7 +279,8 @@
       const r = cv.getBoundingClientRect();
       return [(e.clientX - r.left) / r.width * A.bg.width, (e.clientY - r.top) / r.height * A.bg.height];
     }
-    cv.addEventListener('pointerdown', e => { const [x, y] = stagePoint(e); if (S.onApply(x, y)) { started = true; S.apply(now()); e.preventDefault(); } });
+    cv.addEventListener('pointerdown', e => { if (window.AU) AU.unlock(); const [x, y] = stagePoint(e); if (S.onApply(x, y)) { started = true; S.apply(now()); e.preventDefault(); } });
+    window.__cvr = { S, now };                                            // for tests
     cv.addEventListener('pointermove', e => { const [x, y] = stagePoint(e); cv.style.cursor = S.onApply(x, y) ? 'pointer' : 'default'; });
     if (keys) addEventListener('keydown', e => { if (e.code === 'Space' && !e.repeat) { started = true; S.apply(now()); e.preventDefault(); } });
     (function frame() {

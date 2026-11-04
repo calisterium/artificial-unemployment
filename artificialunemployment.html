@@ -936,12 +936,20 @@ function fillInfo(w) {
       <tr><th>${t.series}</th><td>${lang === 'es' ? 'Desempleo Artificial' : 'Artificial Unemployment'}</td></tr>
       <tr><th>${t.date}</th><td>${w.date[lang]}</td></tr>
       <tr><th>${t.medium}</th><td>${(MEDIUM[w.id] || w.medium)[lang]}</td></tr>
-    </table>` + (w.piece.sound ? '<div class="vsnd"><a href="#" id="vsndBtn"></a></div>' : '');
+    </table>` + '<div class="vsnd" style="display:none"><a href="#" id="vsndBtn"></a></div>';   // shown by vsndLabel() when the piece has sound
   const vb = modal.querySelector('#vsndBtn');
-  if (vb) { vsndLabel(); vb.addEventListener('click', e => { e.preventDefault(); const v = piece.querySelector('video'); if (v) { v.muted = !v.muted; if (!v.muted) v.play().catch(() => {}); } vsndLabel(); }); }
+  vsndLabel();
+  vb.addEventListener('click', e => { e.preventDefault(); const v = piece.querySelector('video'), g = gameSound();
+    if (v) { v.muted = !v.muted; if (!v.muted) v.play().catch(() => {}); } else if (g) g.set(!g.on); vsndLabel(); });
 }
+// a game page that loads au_sound.js exposes window.AU_SOUND (same origin): the caption switch drives it
+function gameSound() { const f = piece.querySelector('iframe'); try { return f && f.contentWindow && f.contentWindow.AU_SOUND || null; } catch (e) { return null; } }
 // the sound switch of a video piece (Carlos, 3 Nov: Growing had no way to mute on a computer); it reads the real state of the video
-function vsndLabel() { const vb = modal.querySelector('#vsndBtn'), v = piece.querySelector('video'); if (vb) vb.textContent = (lang === 'es' ? '[ sonido: ' : '[ sound: ') + (v && !v.muted ? 'on ]' : 'off ]'); }
+function vsndLabel() {
+  const vb = modal.querySelector('#vsndBtn'), v = piece.querySelector('video'), g = gameSound(); if (!vb) return;
+  const has = (v && current && current.piece.sound) || g; vb.parentElement.style.display = has ? '' : 'none'; if (!has) return;
+  const on = v ? !v.muted : g.on; vb.textContent = (lang === 'es' ? '[ sonido: ' : '[ sound: ') + (on ? 'on ]' : 'off ]');
+}
 function fit() {
   if (!current) return;
   let PW = panel.clientWidth, PH = panel.clientHeight - head2.offsetHeight, r = current.ratio;
@@ -973,7 +981,7 @@ function openWork(w) {
     : `<iframe src="${pieceSrc(w)}" allow="autoplay; fullscreen" title="${titleOf(w)}"></iframe>`;   // ?v: skip old cached copies
   if (w.id === '12') scrollHint();                              // Holding the Gaze: a nudge toward its scrollbar
   const fr = piece.querySelector('iframe');                     // Escape pressed inside a game (same origin) closes the popup too
-  if (fr) fr.addEventListener('load', () => { try { fr.contentWindow.addEventListener('keydown', e => { if (e.key === 'Escape') closeWork(); }); } catch (e) {} });
+  if (fr) fr.addEventListener('load', () => { try { fr.contentWindow.addEventListener('keydown', e => { if (e.key === 'Escape') closeWork(); }); } catch (e) {} vsndLabel(); });
   const vd = piece.querySelector('video');                      // autoplay with sound refused (iOS): play muted rather than not at all
   if (vd) { const pr = vd.play(); if (pr && pr.then) pr.then(vsndLabel, () => { vd.muted = true; vd.play().catch(() => {}); vsndLabel(); }); }
   vsndLabel();
