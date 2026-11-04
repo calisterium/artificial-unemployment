@@ -26,6 +26,7 @@
     applyHit: { cx: 1185, cy: 700, rx: 235, ry: 190 },   // clickable area around the APPLY button
   };
 
+  const SND_GAIN = 0.7;                                  // Carlos, 4 Nov 2026: every sound of this work 30 % quieter
   const PHRASES = [
     'Thank you for your interest.',
     'The position has been filled.',
@@ -194,7 +195,7 @@
     apply(t, answer = true) {
       const k = this.nextK++, r = this.stream(k, 1), rr = (a, b) => lerp(a, b, r());
       this.presses.apply.push(t);
-      if (!this.loop && window.AU) AU.play('apply');                       // sound (4 Nov 2026): the red button is pressed
+      if (!this.loop && window.AU) AU.play('apply', { gain: SND_GAIN });   // sound (4 Nov 2026): the red button is pressed
       const tA = rr(...CFG.tApply), j = this.jitter(r);
       this.at(t + CFG.launchAt, () => this.discs.push({ k, side: 'apply', born: t + CFG.launchAt, dur: tA, j }));
       if (!answer) return;
@@ -239,7 +240,7 @@
       const flip = this.loop ? R.k % 2 : (this.burstFlip ^= 1);
       this.bursts.push({ x, y, sc, born: t, name: flip ? 'burst_1' : 'burst_2', flip: r() < 0.5 ? -1 : 1 });
       // sound (4 Nov 2026, Carlos): the discs clash -> the next of the four pieces of Round1, then round again; a new piece cuts the last
-      if (!this.loop && window.AU) { this.round = (this.round || 0) % 4 + 1; AU.play('round_' + this.round, { group: 'round' }); }
+      if (!this.loop && window.AU) { this.round = (this.round || 0) % 4 + 1; AU.play('round_' + this.round, { group: 'round', gain: SND_GAIN }); }
       const names = this.A.man.crumbs, n = Math.round(rr(...CFG.crumbs));
       for (let i = 0; i < n; i++) {
         const ang = rr(-Math.PI * 0.95, -Math.PI * 0.05), sp = rr(160, 520) * sc;
