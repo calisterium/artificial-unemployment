@@ -60,6 +60,7 @@ canvas#static { position:absolute; inset:0; width:1440px; height:1440px; pointer
 .btn:active, .btn.down { border-color:#4a5a80 #ffffff #ffffff #4a5a80; transform:translate(8px,9px); box-shadow:0 0 50px rgba(255,63,208,.55), 8px 9px 0 var(--ink); }
 .btn.start { left:120px; top:1110px; width:1200px; height:280px; font-size:192px; letter-spacing:8px; border-width:12px; outline-width:5px; }
 .btn.next { left:56px; top:1190px; width:830px; height:170px; font-size:110px; letter-spacing:4px; }
+#s2 .btn.next { top:1026px; }   /* 18 Nov 2026: no 3-word question (no keyboard in the show): Seniority, cards and NEXT centred */
 
 .q { position:absolute; left:56px; top:196px; font-weight:bold; font-size:62px; color:#000; white-space:nowrap; }
 .q .hint { font-size:44px; font-weight:normal; }
@@ -69,7 +70,7 @@ canvas#static { position:absolute; inset:0; width:1440px; height:1440px; pointer
 #words input { width:262px; height:84px; box-sizing:border-box; padding:0 18px; background:#fff; border:5px solid; border-color:#404040 #fff #fff #404040;
   box-shadow:inset 3px 3px 0 #808080, 8px 8px 0 rgba(18,10,42,.45); font:42px 'Times New Roman', Times, serif; color:#000; outline:none; border-radius:0; }
 #words input::placeholder { color:#9a9aa8; font-style:italic; }
-#cards { position:absolute; left:56px; top:496px; width:830px; display:grid; grid-template-columns:repeat(3, 1fr); gap:18px; }
+#cards { position:absolute; left:56px; top:332px; width:830px; display:grid; grid-template-columns:repeat(3, 1fr); gap:18px; }
 .card { position:relative; height:166px; overflow:hidden; cursor:pointer;
   background:radial-gradient(ellipse 70% 70% at 50% 38%, var(--l) 0%, var(--m) 55%, var(--d) 100%);
   border:9px solid; border-color:var(--l) var(--d) var(--d) var(--l); outline:4px solid var(--ink);
@@ -174,9 +175,7 @@ canvas#static { position:absolute; inset:0; width:1440px; height:1440px; pointer
         <button class="btn start" data-go="2">START</button>
       </section>
       <section class="scr" id="s2">
-        <div class="q">Describe the job you want in 3 words:</div>
-        <div id="words"><input maxlength="20" placeholder="word 1" spellcheck="false"><input maxlength="20" placeholder="word 2" spellcheck="false"><input maxlength="20" placeholder="word 3" spellcheck="false"></div>
-        <div class="q" style="top:408px">Seniority: <span class="hint">(choose one or more)</span></div>
+        <div class="q" style="top:244px">Seniority: <span class="hint">(choose one or more)</span></div>
         <div id="cards"></div>
         <button class="btn next" data-go="3">NEXT</button>
       </section>
